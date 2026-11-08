@@ -2,6 +2,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('chatAgente', {
   info: () => ipcRenderer.invoke('app:info'),
+  selectBackend: backend => ipcRenderer.invoke('agent:backend', backend),
+  models: () => ipcRenderer.invoke('agent:models'),
+  setModel: model => ipcRenderer.invoke('agent:model', model),
+  signIn: () => ipcRenderer.invoke('chatgpt:signin'),
+  disconnect: () => ipcRenderer.invoke('chatgpt:disconnect'),
+  openUsage: () => ipcRenderer.invoke('chatgpt:usage'),
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   send: prompt => ipcRenderer.invoke('agent:send', prompt),
   stop: () => ipcRenderer.invoke('agent:stop'),

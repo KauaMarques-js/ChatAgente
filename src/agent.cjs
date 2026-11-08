@@ -43,9 +43,11 @@ const tools = [
 ];
 
 class Agent {
-  constructor({ workspace, apiKey, model = 'gpt-5.4-mini', client, onEvent = () => {}, approve = async () => false }) {
+  constructor({ workspace, apiKey, model = 'gpt-5.4-mini', client, clientFactory, onEvent = () => {}, approve = async () => false, sharing = false }) {
     this.workspace = workspace;
-    this.client = client || new OpenAI({ apiKey, maxRetries: 1, timeout: 90_000 });
+    this.client = client || (clientFactory || !apiKey ? null : new OpenAI({ apiKey, maxRetries: 1, timeout: 90_000 }));
+    this.clientFactory = clientFactory;
+    this.sharing = sharing;
     this.model = model;
     this.onEvent = onEvent;
     this.approve = approve;
@@ -58,11 +60,14 @@ class Agent {
     if (!message?.trim()) throw new Error('Escreva uma mensagem.');
     this.history.push({ role: 'user', content: message.trim() });
     try {
+      signal = AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(180_000)]);
       for (let round = 0; round < MAX_ROUNDS; round += 1) {
         if (signal?.aborted) throw new Error('Tarefa interrompida pelo usuário.');
         let result;
         let streamingText = '';
-        const stream = await this.client.responses.create({
+        const client = this.clientFactory ? await this.clientFactory() : this.client;
+        if (!client) throw new Error('Conecte sua conta ChatGPT para iniciar o agente.');
+        const stream = await client.responses.create({
           model: this.model,
           instructions: [
             'Você é o ChatAgente, um agente de programação local para Windows. Responda em português.',
@@ -76,7 +81,7 @@ class Agent {
             'Você não controla o Windows além das ferramentas efetivamente disponíveis neste MVP.',
           ].join('\n'),
           input: this.history,
-          tools,
+          tools: this.sharing ? [{ type: 'namespace', name: 'local', description: 'Ferramentas de desenvolvimento do ChatAgente.', tools }] : tools,
           parallel_tool_calls: false,
           include: ['reasoning.encrypted_content'],
           store: false,
@@ -93,6 +98,8 @@ class Agent {
             throw new Error(event.response.error?.message || 'Resposta da OpenAI falhou.');
           } else if (event.type === 'response.incomplete') {
             throw new Error('Resposta incompleta da OpenAI.');
+          } else if (event.type === 'error') {
+            throw new Error(`ChatGPT: ${event.code || 'erro no streaming'}`);
           }
         }
         if (!result || result.status !== 'completed') throw new Error('A OpenAI não concluiu a resposta.');
@@ -128,7 +135,7 @@ class Agent {
   async executeTool(name, args, signal) {
     if (signal?.aborted) throw new Error('Tarefa interrompida.');
     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Argumentos inválidos.');
-    switch (name) {
+    switch (name.startsWith('local.') ? name.slice('local.'.length) : name) {
       case 'list_files': return this.workspace.listFiles(args.path);
       case 'read_file': return this.workspace.readFile(args.path);
       case 'git_status': return this.workspace.gitStatus(signal);
@@ -155,7 +162,7 @@ class Agent {
 }
 
 function previewArgs(name, args) {
-  if (name === 'write_file') return { path: args.path, bytes: Buffer.byteLength(args.content || '') };
+  if (name === 'write_file' || name === 'local.write_file') return { path: args.path, bytes: Buffer.byteLength(args.content || '') };
   return args;
 }
 

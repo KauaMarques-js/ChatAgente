@@ -18,9 +18,20 @@
         <div id="project-path" class="project-path">Carregando...</div>
         <button id="choose-project" class="btn outline">▣ Selecionar pasta</button>
         <div class="separator"></div>
-        <div class="label">MODELO</div>
-        <div id="model-name" class="model-name">—</div>
-        <p class="muted small">Configurável no arquivo <code>.env</code>.</p>
+        <label class="label" for="backend-select">AGENTE DE IA</label>
+        <select id="backend-select" class="sidebar-select" aria-label="Escolha o agente">
+          <option value="chatgpt">ChatGPT</option>
+          <option value="codex">Codex</option>
+        </select>
+        <div id="chatgpt-settings">
+          <label class="label" for="model-select">MODELO CHATGPT</label>
+          <select id="model-select" class="sidebar-select" aria-label="Modelo ChatGPT"></select>
+          <button id="sign-in" class="btn outline auth-button" type="button">Continuar com ChatGPT</button>
+          <button id="disconnect" class="btn ghost" type="button" hidden>Desconectar desta IDE</button>
+          <button id="usage" class="btn ghost" type="button">Ver uso do plano ↗</button>
+          <p id="auth-description" class="muted small">Continue com ChatGPT sem API key. Uso sujeito à disponibilidade e aos limites da sua conta.</p>
+        </div>
+        <div id="codex-settings" hidden><p class="muted small">Usa o login do Codex CLI. Cada tarefa pede autorização antes de executar.</p></div>
         <div class="separator"></div>
         <div class="label">GIT</div>
         <button id="git-status" class="btn ghost">↳ Ver status</button>

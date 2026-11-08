@@ -2,6 +2,7 @@
   "name": "chatagente",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Agente desktop Windows com chat OpenAI e ferramentas locais",
   "main": "src/main.cjs",
   "scripts": {
@@ -10,7 +11,9 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@openai/codex-sdk": "^0.167.0",
     "dotenv": "^17.2.3",
+    "jose": "^6.2.16",
     "openai": "^7.53.0"
   },
   "devDependencies": {

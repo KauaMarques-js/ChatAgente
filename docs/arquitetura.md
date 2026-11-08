@@ -1,5 +1,9 @@
 # Arquitetura proposta
 
+## Implementado no MVP (08/11/2026)
+
+Electron + Node.js com frontend HTML/JS, isolamento de contexto e ponte de IPC. O processo principal escolhe entre `Agent` (Responses API com OAuth do plano ChatGPT, sem API key) e `CodexAgent` (SDK Codex/CLI); ambos usam uma pasta de trabalho por vez e exibem eventos na mesma interface. A autenticação de plano ChatGPT é feita no processo principal em `src/chatgpt-auth.cjs`, com tokens criptografados fora do repositório. O executor `src/workspace.cjs` aplica proteções de arquivos para o agente ChatGPT. O Codex usa seu próprio sandbox `workspace-write`, autorizado por tarefa. As seções abaixo preservam a visão de arquitetura de longo prazo.
+
 Estado: proposta técnica, sem implementação ou validação de dependências. Escolhas reversíveis podem ser ajustadas após inspeção do repositório.
 
 ## Escolha inicial

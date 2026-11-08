@@ -6,6 +6,10 @@ Origem: conversa com o usuário em 08/11/2026. A primeira solicitação autorizo
 
 ## Requisitos explícitos
 
+**RF10 (pedido posterior, autorizado em 08/11/2026):** projeto gratuito e open source, com login oficial ChatGPT sem exigir chave de API. O agente ChatGPT da aplicação usa OAuth e não recorre automaticamente a API key. Gratuidade do software não garante inferência gratuita; respeitar elegibilidade, permissões e limites da conta, sem prometer acesso irrestrito ou contornar cobrança. Codex mantém a integração independente solicitada em RF09.
+
+**RF09 (pedido posterior, autorizado em 08/11/2026):** selecionar entre **ChatGPT** e **Codex** como agentes de programação, com autenticação e execução reais para ambos. ChatGPT usa uma integração própria com ferramentas locais; Codex usa o SDK/CLI oficial. O modo selecionado deve ficar visível e a troca deve exigir tarefa anterior finalizada.
+
 | ID | Requisito | Evidência de aceitação esperada |
 | --- | --- | --- |
 | RF01 | Aplicativo IDE para Windows centrado no chat | Aplicativo desktop abre e permite iniciar uma conversa |

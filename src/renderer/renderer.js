@@ -19,6 +19,10 @@ function setBusy(isBusy, label = 'Pronto') {
   $('send').disabled = isBusy;
   $('stop').disabled = !isBusy;
   $('terminal-input').disabled = isBusy;
+  $('backend-select').disabled = isBusy;
+  $('model-select').disabled = isBusy;
+  $('sign-in').disabled = isBusy;
+  $('disconnect').disabled = isBusy;
   $('task-status').textContent = label;
 }
 function showError(error) {
@@ -49,10 +53,70 @@ function appendTerminal(output) {
 }
 function setInfo(info) {
   $('project-path').textContent = info.directory;
-  $('model-name').textContent = info.model;
-  $('api-state').textContent = info.apiConfigured ? 'API configurada' : 'API sem chave (.env)';
-  $('api-dot').classList.toggle('good', info.apiConfigured);
+  $('backend-select').value = info.backend;
+  $('chatgpt-settings').hidden = info.backend !== 'chatgpt';
+  $('codex-settings').hidden = info.backend !== 'codex';
+  $('disconnect').hidden = !info.chatgpt?.connected;
+  $('sign-in').textContent = info.chatgpt?.connected ? 'Reconectar ChatGPT' : 'Continuar com ChatGPT';
+  const connected = info.chatgpt?.sharing;
+  $('api-state').textContent = info.backend === 'codex' ? 'Codex · via CLI' : connected
+    ? `ChatGPT · ${info.chatgpt.email || 'plano conectado'}`
+    : 'ChatGPT · login necessário';
+  $('api-dot').classList.toggle('good', info.backend === 'codex' || connected);
+  $('auth-description').textContent = info.authError || (connected
+    ? 'Plano ChatGPT autorizado nesta IDE. O uso segue os limites da sua conta.'
+    : info.chatgpt?.connected ? 'Conta conectada, mas o uso do plano não foi autorizado. Reconecte para autorizar.'
+      : 'Continue com ChatGPT sem API key. Disponibilidade e limites dependem da sua conta.');
+  if (!$('model-select').options.length) $('model-select').add(new Option(info.model, info.model));
+  if ([...$('model-select').options].some(option => option.value === info.model)) $('model-select').value = info.model;
 }
+
+async function refreshModels(current) {
+  if (!current || current.backend !== 'chatgpt') return;
+  try {
+    const models = await api.models();
+    const select = $('model-select');
+    select.replaceChildren();
+    for (const model of models) select.add(new Option(model.name, model.slug));
+    if (models.some(m => m.slug === current.model)) select.value = current.model;
+    else if (models.length) {
+      const updated = await api.setModel(models[0].slug);
+      setInfo(updated);
+    }
+  } catch (error) { activity('Modelos ChatGPT', error.message, 'erro'); }
+}
+
+$('backend-select').addEventListener('change', async event => {
+  try {
+    const info = await api.selectBackend(event.target.value);
+    setInfo(info);
+    $('messages').replaceChildren();
+    reply = null;
+    activity('Agente selecionado', info.backend === 'chatgpt' ? 'ChatGPT' : 'Codex');
+    await refreshModels(info);
+  } catch (error) { showError(error); setInfo(await api.info()); }
+});
+
+$('model-select').addEventListener('change', async event => {
+  try { const info = await api.setModel(event.target.value); setInfo(info); $('messages').replaceChildren(); reply = null; }
+  catch (error) { showError(error); }
+});
+
+$('sign-in').addEventListener('click', async () => {
+  setBusy(true, 'Autenticando no navegador...');
+  try { const info = await api.signIn(); setInfo(info); await refreshModels(info); activity('ChatGPT conectado', info.chatgpt.email || '', info.chatgpt.sharing ? 'plano autorizado' : 'sem permissão de uso'); }
+  catch (error) { showError(error); setInfo(await api.info()); }
+  finally { setBusy(false); }
+});
+
+$('disconnect').addEventListener('click', async () => {
+  try { const info = await api.disconnect(); if (info.warning) activity('Desconexão', info.warning, 'aviso'); setInfo(info); await refreshModels(info); $('messages').replaceChildren(); reply = null; activity('ChatGPT desconectado', 'Gerencie a autorização remota nas configurações do ChatGPT.'); }
+  catch (error) { showError(error); }
+});
+
+$('usage').addEventListener('click', async () => {
+  try { await api.openUsage(); } catch (error) { showError(error); }
+});
 
 api.onEvent(event => {
   if (event.type === 'delta') {
@@ -128,4 +192,4 @@ $('terminal-form').addEventListener('submit', async event => {
   finally { setBusy(false); $('terminal-input').focus(); }
 });
 
-api.info().then(setInfo).catch(showError);
+api.info().then(async info => { setInfo(info); await refreshModels(info); }).catch(showError);

@@ -1,14 +1,24 @@
 const path = require('node:path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true });
-const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, safeStorage, shell } = require('electron');
+const OpenAI = require('openai');
 const { Workspace } = require('./workspace.cjs');
 const { Agent } = require('./agent.cjs');
+const { CodexAgent } = require('./codex-agent.cjs');
+const { ChatGPTAuth } = require('./chatgpt-auth.cjs');
 
 let window;
 let workspace;
-let agent;
+let agents;
+let auth;
+let authError = '';
+let backend = 'chatgpt';
+let model = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
 let activeController;
 let terminalController;
+
+if (!app.requestSingleInstanceLock()) app.quit();
+app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.focus(); } });
 
 function notify(event) {
   if (window && !window.isDestroyed()) window.webContents.send('agent:event', event);
@@ -17,22 +27,28 @@ function notify(event) {
 function info() {
   return {
     directory: workspace.root,
-    apiConfigured: Boolean(process.env.OPENAI_API_KEY),
-    model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+    apiConfigured: false,
+    chatgpt: auth?.status() || { connected: false, sharing: false },
+    authError, backend, model,
   };
 }
 
-function makeAgent() {
-  agent = null;
-  if (process.env.OPENAI_API_KEY) {
-    agent = new Agent({
-      workspace,
-      apiKey: process.env.OPENAI_API_KEY,
-      model: info().model,
-      onEvent: notify,
-      approve: approveAction,
-    });
-  }
+function makeAgents() {
+  const usePlan = auth?.status().sharing;
+  agents = {
+    chatgpt: new Agent({
+      workspace, model,
+      sharing: usePlan,
+      ...(usePlan ? { clientFactory: async () => {
+        const token = await auth.accessToken();
+        return new OpenAI({ apiKey: token, baseURL: 'https://api.openai.com/v1', logLevel: 'warn',
+          organization: null, project: null, maxRetries: 0, fetchOptions: { redirect: 'error' },
+          defaultHeaders: { authorization: `Bearer ${token}`, 'openai-organization': null, 'openai-project': null } });
+      } } : {}),
+      onEvent: notify, approve: approveAction,
+    }),
+    codex: new CodexAgent({ workspace, onEvent: notify }),
+  };
 }
 
 async function approveAction(name, args) {
@@ -65,10 +81,16 @@ function createWindow() {
   window.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, reply) => reply(false));
   workspace = new Workspace(process.cwd());
-  makeAgent();
+  auth = new ChatGPTAuth({ directory: app.getPath('userData'), safeStorage,
+    openBrowser: async url => {
+      if (new URL(url).origin !== 'https://auth.openai.com') throw new Error('Destino de autenticação inválido.');
+      await shell.openExternal(url);
+    } });
+  try { await auth.initialize(); } catch (error) { authError = error.message; }
+  makeAgents();
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
@@ -81,13 +103,13 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('app:info', () => info());
 ipcMain.handle('project:choose', async () => {
-  if (activeController || terminalController) throw new Error('Interrompa a execução antes de trocar o projeto.');
+  if (activeController || terminalController || auth?.signingIn) throw new Error('Interrompa a execução antes de trocar o projeto.');
   const selected = await dialog.showOpenDialog(window, {
     title: 'Selecione a pasta do projeto', properties: ['openDirectory'],
   });
   if (!selected.canceled && selected.filePaths[0]) {
     workspace = new Workspace(selected.filePaths[0]);
-    makeAgent();
+    makeAgents();
     notify({ type: 'project', directory: workspace.root });
   }
   return info();
@@ -95,17 +117,82 @@ ipcMain.handle('project:choose', async () => {
 
 ipcMain.handle('chat:reset', () => {
   if (activeController) throw new Error('Interrompa a tarefa antes de limpar o contexto.');
-  agent?.reset();
+  agents?.[backend]?.reset();
   return true;
 });
 
-ipcMain.handle('agent:send', async (_event, prompt) => {
-  if (activeController || terminalController) throw new Error('Já há uma execução em andamento.');
-  if (!agent) throw new Error('OPENAI_API_KEY ausente. Configure o arquivo .env e reinicie o aplicativo.');
-  if (typeof prompt !== 'string' || prompt.length > 15_000) throw new Error('Mensagem inválida (máximo 15.000 caracteres).');
+ipcMain.handle('agent:backend', (_event, selected) => {
+  if (activeController || terminalController || auth?.signingIn) throw new Error('Termine a execução para trocar de agente.');
+  if (!['chatgpt', 'codex'].includes(selected)) throw new Error('Agente inválido.');
+  backend = selected;
+  agents[selected]?.reset();
+  return info();
+});
+
+ipcMain.handle('agent:models', async () => {
+  if (auth?.status().sharing) return auth.models();
+  const configured = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+  return [{ slug: configured, name: configured }];
+});
+
+ipcMain.handle('agent:model', (_event, selected) => {
+  if (activeController || terminalController) throw new Error('Finalize a execução para trocar o modelo.');
+  if (typeof selected !== 'string' || !/^[\w./:-]{2,200}$/.test(selected)) throw new Error('Modelo inválido.');
+  model = selected;
+  agents.chatgpt.model = selected;
+  agents.chatgpt.reset();
+  return info();
+});
+
+ipcMain.handle('chatgpt:signin', async () => {
+  if (activeController || terminalController) throw new Error('Interrompa a execução para conectar uma conta.');
+  if (authError) throw new Error(authError);
   const controller = new AbortController();
   activeController = controller;
-  try { return await agent.send(prompt, controller.signal); }
+  try {
+    const result = await auth.signIn(controller.signal);
+    makeAgents();
+    if (result.sharing) {
+      const models = await auth.models();
+      if (models.length) model = models[0].slug;
+    }
+    makeAgents();
+    return info();
+  } finally {
+    if (activeController === controller) activeController = null;
+  }
+});
+
+ipcMain.handle('chatgpt:disconnect', async () => {
+  if (activeController || terminalController) throw new Error('Finalize a tarefa antes de desconectar.');
+  const disconnected = await auth.disconnect();
+  model = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+  makeAgents();
+  return { ...info(), warning: disconnected.warning };
+});
+
+ipcMain.handle('chatgpt:usage', async () => shell.openExternal('https://chatgpt.com/settings/usage'));
+
+ipcMain.handle('agent:send', async (_event, prompt) => {
+  if (activeController || terminalController) throw new Error('Já há uma execução em andamento.');
+  if (auth?.signingIn) throw new Error('Conclua o login ChatGPT antes de enviar uma tarefa.');
+  if (backend === 'chatgpt' && !auth?.status().sharing) {
+    throw new Error('Continue com ChatGPT e autorize o uso do plano. Não é necessária API key.');
+  }
+  if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 15_000) throw new Error('Mensagem inválida (máximo 15.000 caracteres).');
+  const controller = new AbortController();
+  activeController = controller;
+  try {
+    if (backend === 'codex') {
+    const choice = await dialog.showMessageBox(window, { type: 'warning', title: 'Permitir execução Codex?',
+      message: 'Permitir que Codex execute comandos e altere arquivos neste projeto?',
+      detail: `Pasta: ${workspace.root}\nO Codex usa workspace-write e não solicita aprovação individual para cada alteração nesta tarefa.`,
+      buttons: ['Permitir tarefa', 'Cancelar'], defaultId: 1, cancelId: 1, noLink: true });
+    if (choice.response !== 0) throw new Error('Tarefa Codex cancelada.');
+    }
+    controller.signal.throwIfAborted();
+    return await agents[backend].send(prompt, controller.signal);
+  }
   finally { if (activeController === controller) activeController = null; }
 });
 
