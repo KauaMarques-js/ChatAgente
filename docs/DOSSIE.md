@@ -1,0 +1,1 @@
+Preciso de um app windows de agente de ia, para o chat, onde o chat pode fazer tudo que o codex faz, tendo acesso 100% do computador pastas arquivos do projeto, porém vai ser o chatgpt, inves do codex. Preciso que ele pense igual o codex pensa, ao receber o arquivo, que possa mexer com git, navegador, com tudo que o codex faz

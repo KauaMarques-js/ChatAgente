@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'" />
+    <title>ChatAgente</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="logo">◇</span><span>Chat<span class="accent">Agente</span></span><small>LOCAL • MVP</small></div>
+      <div class="connection"><span id="api-dot" class="dot"></span><span id="api-state">Verificando API...</span></div>
+    </header>
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="label">PROJETO ATUAL</div>
+        <div id="project-path" class="project-path">Carregando...</div>
+        <button id="choose-project" class="btn outline">▣ Selecionar pasta</button>
+        <div class="separator"></div>
+        <div class="label">MODELO</div>
+        <div id="model-name" class="model-name">—</div>
+        <p class="muted small">Configurável no arquivo <code>.env</code>.</p>
+        <div class="separator"></div>
+        <div class="label">GIT</div>
+        <button id="git-status" class="btn ghost">↳ Ver status</button>
+        <button id="git-diff" class="btn ghost">↳ Ver alterações</button>
+        <div class="sidebar-bottom">
+          <button id="reset-chat" class="btn ghost">↻ Nova conversa</button>
+          <p class="muted small">Os comandos do agente e alterações em arquivos pedem sua autorização. O terminal manual executa o que você digitar.</p>
+        </div>
+      </aside>
+      <section class="chat-pane">
+        <div class="pane-heading"><h1>Agente de programação</h1><span id="task-status">Pronto</span></div>
+        <div id="messages" class="messages" aria-live="polite">
+          <div class="welcome"><div class="welcome-icon">✳</div><h2>O que vamos construir?</h2><p>Selecione um projeto, descreva uma tarefa e acompanhe as ferramentas executadas em tempo real.</p><p class="example">Exemplo: “Leia o README, localize o bug e corrija. Depois execute os testes.”</p></div>
+        </div>
+        <form id="composer" class="composer">
+          <textarea id="prompt" rows="3" placeholder="Descreva o que você quer que o agente faça... (Enter envia, Shift+Enter quebra linha)" aria-label="Mensagem para o agente"></textarea>
+          <div class="composer-actions"><span class="muted small">Ações locais com revisão</span><div><button type="button" id="stop" class="btn danger" disabled>■ Parar</button><button id="send" type="submit" class="btn primary">Enviar ↗</button></div></div>
+        </form>
+      </section>
+      <aside class="activity-pane">
+        <div class="pane-heading"><h2>Atividade</h2><button id="clear-log" class="tiny-btn">Limpar</button></div>
+        <div id="activity" class="activity" aria-live="polite"><p class="muted small">As chamadas de ferramentas aparecerão aqui.</p></div>
+        <div class="terminal">
+          <div class="terminal-title"><span>⌘ PowerShell</span><span class="muted small">pasta do projeto</span></div>
+          <pre id="terminal-output" aria-live="polite">Terminal pronto.</pre>
+          <form id="terminal-form" class="terminal-form"><span>PS&gt;</span><input id="terminal-input" autocomplete="off" spellcheck="false" placeholder="Digite um comando..." aria-label="Comando PowerShell" /><button type="submit" class="tiny-btn">↵</button></form>
+        </div>
+      </aside>
+    </main>
+    <script src="renderer.js"></script>
+  </body>
+</html>
