@@ -201,7 +201,9 @@ ipcMain.handle('agent:send', async (_event, prompt) => {
     if (choice.response !== 0) throw new Error('Tarefa Codex cancelada.');
     }
     controller.signal.throwIfAborted();
-    return await agents[backend].send(prompt, controller.signal);
+    const result = await agents[backend].send(prompt, controller.signal);
+    notify({ type: 'done', text: result });
+    return result;
   }
   finally { if (activeController === controller) activeController = null; }
 });

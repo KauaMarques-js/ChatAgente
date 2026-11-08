@@ -144,12 +144,14 @@ class Workspace {
     return { changes, warning: result.output.endsWith('[saída truncada]') ? 'Há mais alterações Git do que o limite de exibição.' : '' };
   }
 
-  readFile(relativePath, { track = true } = {}) {
+  readFile(relativePath, { track = true, maxBytes = 100_000 } = {}) {
     const target = getSafePath(this.root, relativePath);
     const stats = fs.statSync(target);
     if (!stats.isFile()) throw new Error('O caminho não é um arquivo.');
     if (stats.size > 100_000) throw new Error('Arquivo grande demais para o contexto (100 KB).');
+    if (stats.size > maxBytes) throw new Error('Limite de conteúdo do lote atingido. Leia este arquivo separadamente.');
     const data = fs.readFileSync(target);
+    if (data.length > Math.min(100_000, maxBytes)) throw new Error('Limite de conteúdo atingido. Leia este arquivo separadamente.');
     if (data.includes(0)) throw new Error('Arquivo binário não suportado neste MVP.');
     if (track) this.readHashes.set(target, hash(data));
     return { path: path.relative(this.root, target).replaceAll('\\', '/'), content: data.toString('utf8') };

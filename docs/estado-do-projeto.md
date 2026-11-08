@@ -1,5 +1,16 @@
 # Estado do projeto
 
+## Incremento 7 — correção do limite de ferramentas, 0.1.1 (08/11/2026)
+
+- Falha relatada ao mapear a documentação: o orçamento fixo de 14 rodadas, com chamadas paralelas desativadas, interrompia leituras sequenciais; o tratamento genérico apagava todo o histórico ao atingir o limite.
+- Correção: ferramenta `read_files` para até 8 arquivos e 200 KB por lote, respeitando bloqueios e erros individuais. Orçamento técnico de 64 rodadas e 10 minutos, com reserva para resumo perto do fim do tempo. Ao esgotar rodadas ou repetir três consultas idênticas sem progresso, pede uma resposta com `tool_choice: none`, resume pendências e marca a interface como pausada. Não amplia permissões de escrita ou shell.
+- Falhas/cancelamento preservam rodadas completas e descartam somente respostas incompletas. Em resposta com várias ferramentas, as não iniciadas recebem resultado de cancelamento, mantendo pares válidos; ações já feitas não são repetidas automaticamente. O usuário pode enviar “continuar”. Histórico continua apenas na memória.
+- Verificação: `npm test`, **29/29 aprovados**, com regressões para 18 arquivos, limite de 64 rodadas e continuação, repetição sem progresso, leitura em lote com bloqueios/cota, falha de rede após escrita e cancelamento entre múltiplas ferramentas. Testes de inferência simulados, sem conta ou consumo real.
+- Verificação no Electron com inferência simulada e ciclo real do agente: pausa por repetição, resumo, status pausado e continuação com os resultados anteriores. Corrigida também uma corrida entre a resposta IPC e os eventos: conclusão agora usa o mesmo canal ordenado dos eventos de progresso; evita resumo duplicado/status preso em “Resumindo”.
+- Atualização 0.1.1 preparada para substituir o download de teste 0.1.0. P01–P06 permanecem propostas. Os limites técnicos não prometem tarefas ilimitadas nem memória persistente.
+
+Documentação oficial consultada em 08/11/2026: https://developers.openai.com/api/docs/guides/function-calling (`tool_choice: none`, ciclo de ferramentas e resultados correspondentes).
+
 ## Incremento 6 — distribuição Windows 0.1.0 (08/11/2026)
 
 - RF13: instalador NSIS por usuário e ZIP para Windows x64, gerados com `npm run dist:win`, Electron 45.2.3 e electron-builder 26.18.0. Pacotes em `dist/`, excluídos do Git. Configuração inclui somente código do aplicativo, documentação de uso/licença e dependências de execução; `.env`, histórico, credenciais, testes e ferramentas de publicação não entram no pacote.

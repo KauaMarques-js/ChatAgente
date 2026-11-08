@@ -49,3 +49,105 @@ test('agente continua chamada de ferramenta usando API simulada, sem tráfego pa
   assert.equal(calls, 2);
   assert.ok(events.some(e => e.name === 'read_file' && e.status === 'concluído'));
 });
+
+function response(output = [], text = '') {
+  return (async function* () {
+    yield { type: 'response.completed', response: { status: 'completed', output, output_text: text } };
+  })();
+}
+function readCall(index, file = `${index}.md`) {
+  return { type: 'function_call', call_id: `read_${index}`, name: 'read_file', arguments: JSON.stringify({ path: file }) };
+}
+
+test('mapeia mais de 14 arquivos sem interromper a tarefa', async () => {
+  let rounds = 0;
+  const agent = new Agent({ workspace: { root: 'C:\\projeto', readFile: path => ({ path, content: path }) },
+    client: { responses: { create: async () => ++rounds <= 18 ? response([readCall(rounds)]) : response([], 'Mapeamento concluído.') } } });
+  assert.equal(await agent.send('Leia a documentação'), 'Mapeamento concluído.');
+  assert.equal(rounds, 19);
+});
+
+test('ao atingir o orçamento, resume sem ferramentas e permite continuar com o contexto', async () => {
+  let rounds = 0;
+  const events = [];
+  const agent = new Agent({ workspace: { root: 'C:\\projeto', readFile: path => ({ path, content: path }) }, onEvent: event => events.push(event),
+    sharing: true, client: { responses: { create: async body => {
+      rounds++;
+      if (rounds <= 64) return response([readCall(rounds)]);
+      if (rounds === 65) {
+        assert.equal(body.tool_choice, 'none');
+        assert.equal(body.tools[0].type, 'namespace');
+        assert.match(body.instructions, /Resuma/);
+        return response([], 'Li 64 arquivos. Falta revisar o módulo final. Envie continuar.');
+      }
+      assert.equal(body.tool_choice, undefined);
+      assert.ok(body.input.some(item => item.type === 'function_call_output' && item.call_id === 'read_64'));
+      return response([], 'Revisão concluída.');
+    } } } });
+  assert.match(await agent.send('Mapeie o projeto'), /Falta revisar/);
+  assert.equal(events.filter(event => event.type === 'paused').length, 1);
+  assert.equal(await agent.send('continuar'), 'Revisão concluída.');
+  assert.equal(rounds, 66);
+});
+
+test('detecta consultas idênticas sem progresso e pede um resumo', async () => {
+  let requests = 0;
+  let reads = 0;
+  const agent = new Agent({ workspace: { root: 'C:\\projeto', readFile: () => { reads++; return { content: 'inalterado' }; } },
+    client: { responses: { create: async body => {
+      requests++;
+      if (body.tool_choice === 'none') return response([], 'Pausado por repetição.');
+      return response([readCall(requests, 'README.md')]);
+    } } } });
+  assert.equal(await agent.send('Investigue'), 'Pausado por repetição.');
+  assert.equal(reads, 3);
+  assert.equal(requests, 4);
+});
+
+test('leitura em lote mantém bloqueios, erros por arquivo e limite de conteúdo', async t => {
+  const agent = setup(t);
+  fs.writeFileSync(path.join(agent.workspace.root, 'a.md'), 'a'.repeat(90_000));
+  fs.writeFileSync(path.join(agent.workspace.root, 'b.md'), 'b'.repeat(90_000));
+  fs.writeFileSync(path.join(agent.workspace.root, 'c.md'), 'c'.repeat(90_000));
+  fs.writeFileSync(path.join(agent.workspace.root, '.env'), 'segredo');
+  const result = await agent.executeTool('local.read_files', { paths: ['a.md', '.env', 'ausente.md', 'b.md', 'c.md'] });
+  assert.equal(result.files[0].content.length, 90_000);
+  assert.match(result.files[1].error, /sensível/);
+  assert.match(result.files[2].error, /inexistente/);
+  assert.equal(result.files[3].content.length, 90_000);
+  assert.match(result.files[4].error, /lote/);
+  assert.throws(() => agent.workspace.writeFile('c.md', 'sem leitura'), /Leia o arquivo/);
+  await assert.rejects(agent.executeTool('read_files', { paths: Array(9).fill('a.md') }), /1 a 8/);
+});
+
+test('falha de rede mantém resultados completos e não repete escrita ao continuar', async t => {
+  const agent = setup(t, async () => true);
+  let requests = 0;
+  let writes = 0;
+  const original = agent.workspace.writeFile.bind(agent.workspace);
+  agent.workspace.writeFile = (...args) => { writes++; return original(...args); };
+  agent.client.responses.create = async body => {
+    requests++;
+    if (requests === 1) return response([{ type: 'function_call', call_id: 'write_1', name: 'write_file', arguments: JSON.stringify({ path: 'novo.md', content: 'feito' }) }]);
+    if (requests === 2) throw new Error('Falha de rede simulada');
+    assert.ok(body.input.some(item => item.type === 'function_call_output' && item.call_id === 'write_1'));
+    return response([], 'A escrita anterior já foi concluída.');
+  };
+  await assert.rejects(agent.send('Crie o arquivo'), /rede simulada/);
+  assert.match(await agent.send('continuar'), /já foi concluída/);
+  assert.equal(writes, 1);
+});
+
+test('cancelamento em resposta com várias ferramentas mantém pares e impede próximas escritas', async t => {
+  const controller = new AbortController();
+  const agent = setup(t, async () => true);
+  const original = agent.workspace.writeFile.bind(agent.workspace);
+  agent.workspace.writeFile = (...args) => { const result = original(...args); controller.abort(); return result; };
+  agent.client.responses.create = async () => response(['primeiro.md', 'segundo.md'].map((file, i) => ({ type: 'function_call', call_id: `write_${i}`, name: 'write_file', arguments: JSON.stringify({ path: file, content: 'feito' }) })));
+  await assert.rejects(agent.send('Crie arquivos', controller.signal), /interrompida/);
+  assert.equal(fs.existsSync(path.join(agent.workspace.root, 'primeiro.md')), true);
+  assert.equal(fs.existsSync(path.join(agent.workspace.root, 'segundo.md')), false);
+  const outputs = agent.history.filter(item => item.type === 'function_call_output');
+  assert.equal(outputs.length, 2);
+  assert.match(outputs[1].output, /não iniciada/);
+});

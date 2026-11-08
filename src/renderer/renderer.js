@@ -2,6 +2,7 @@ const api = window.chatAgente;
 const $ = id => document.getElementById(id);
 let busy = false;
 let reply;
+let agentPaused = false;
 let terminalBusy = false;
 let terminalStopping = false;
 const terminalHistory = [];
@@ -183,9 +184,22 @@ $('usage').addEventListener('click', async () => {
 });
 
 api.onEvent(event => {
-  if (event.type === 'terminal-output') {
+  if (event.type === 'done') {
+    if (!reply) bubble(event.text);
+    setBusy(false, agentPaused ? 'Pausado · envie continuar' : 'Concluído');
+    reply = null;
+    $('prompt').focus();
+    void window.projectExplorer.refresh();
+  } else if (event.type === 'paused') {
+    if (!busy) return;
+    agentPaused = true;
+    reply = null;
+    activity('Pausa do agente', event.reason, 'resumindo progresso');
+    $('task-status').textContent = 'Resumindo progresso...';
+  } else if (event.type === 'terminal-output') {
     appendTerminal(event.text);
   } else if (event.type === 'delta') {
+    if (!busy) return;
     if (!reply) reply = bubble('');
     reply.textContent += event.text;
     scrollEnd($('messages'));
@@ -207,15 +221,17 @@ $('composer').addEventListener('submit', async event => {
   $('prompt').value = '';
   bubble(prompt, 'user');
   reply = null;
+  agentPaused = false;
   setBusy(true, 'Executando...');
   try {
-    const result = await api.send(prompt);
-    if (!reply) bubble(result);
-    setBusy(false, 'Concluído');
+    await api.send(prompt);
   } catch (error) {
     showError(error);
     setBusy(false, 'Falhou');
-  } finally { reply = null; $('prompt').focus(); void window.projectExplorer.refresh(); }
+    reply = null;
+    $('prompt').focus();
+    void window.projectExplorer.refresh();
+  }
 });
 
 $('prompt').addEventListener('keydown', event => {

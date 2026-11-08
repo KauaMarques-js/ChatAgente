@@ -1,6 +1,6 @@
 {
   "name": "chatagente",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "MIT",
   "description": "Agente desktop Windows com chat OpenAI e ferramentas locais",
@@ -21,11 +21,23 @@
   "build": {
     "appId": "io.github.kauamarquesjs.chatagente",
     "productName": "ChatAgente",
-    "directories": { "output": "dist" },
-    "files": ["src/**/*", "package.json", "LICENSE", "README.md"],
-    "asarUnpack": ["node_modules/@openai/codex*/**/*"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "LICENSE",
+      "README.md"
+    ],
+    "asarUnpack": [
+      "node_modules/@openai/codex*/**/*"
+    ],
     "win": {
-      "target": ["nsis", "zip"],
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "signAndEditExecutable": false
     },
     "nsis": {

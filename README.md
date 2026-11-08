@@ -6,7 +6,7 @@ IDE desktop para Windows com **dois agentes selecionáveis: ChatGPT e Codex**. O
 
 ### Baixar para Windows
 
-Na [versão de testes 0.1.0](https://github.com/KauaMarques-js/ChatAgente/releases/tag/v0.1.0), baixe **ChatAgente-Setup-0.1.0-x64.exe** para instalar, ou **ChatAgente-0.1.0-win.zip** para extrair e executar `ChatAgente.exe` sem instalação. Extraia o ZIP inteiro; mantenha a pasta `resources` ao lado do executável. Não é necessário instalar Node.js/npm para abrir esses pacotes.
+Na [versão de testes 0.1.1](https://github.com/KauaMarques-js/ChatAgente/releases/tag/v0.1.1), baixe **ChatAgente-Setup-0.1.1-x64.exe** para instalar, ou **ChatAgente-0.1.1-win.zip** para extrair e executar `ChatAgente.exe` sem instalação. Extraia o ZIP inteiro; mantenha a pasta `resources` ao lado do executável. Não é necessário instalar Node.js/npm para abrir esses pacotes.
 
 Pacotes para Windows x64; abertura verificada no Windows 10. O instalador não possui assinatura digital e o Windows pode exibir aviso de aplicativo desconhecido. Os hashes dos downloads ficam em `SHA256SUMS.txt`. PowerShell é necessário para comandos locais e Git para os recursos Git. Abra **Agente e ferramentas** para autenticar e use **Selecionar pasta** no explorador para escolher seu projeto.
 
@@ -44,6 +44,8 @@ O terminal ainda executa cada envio em um novo PowerShell na pasta do projeto: `
 No **ChatGPT**, cada comando sugerido pelo agente e cada escrita de arquivo exigem autorização na janela; os acessos diretos a arquivos são limitados ao projeto e protegem segredos conhecidos. Comandos PowerShell aprovados herdam as permissões do seu usuário Windows e podem acessar pastas externas. No **Codex**, cada tarefa pede autorização inicial para trabalhar em `workspace-write`; as ações individuais são executadas pelo SDK no sandbox do Codex sem novas confirmações da janela. Consulte o Git diff antes de aceitar alterações sensíveis.
 
 Os históricos dos dois agentes são independentes na memória do processo. Selecionar outro agente ou modelo inicia uma nova conversa visual, e reiniciar o app descarta esse histórico. **Parar** tenta cancelar a execução ou o login em andamento. **Desconectar desta IDE** apaga as credenciais locais e tenta revogar a sessão remota; se não houver confirmação, um aviso orienta a desconexão nas configurações do ChatGPT.
+
+O agente ChatGPT lê até 8 arquivos relacionados por lote, respeitando os bloqueios de acesso. Uma etapa pode usar até 64 rodadas de ferramentas e até 10 minutos; ao chegar ao orçamento de rodadas ou repetir a mesma consulta sem progresso, solicita um resumo sem novas ferramentas e mostra **Pausado · envie continuar**. Envie **continuar** para retomar com os resultados já obtidos. Falhas preservam as rodadas completas na memória, sem repetir automaticamente comandos ou alterações. Reiniciar ou trocar de projeto ainda descarta o contexto.
 
 ## Contas, privacidade e limitações
 
