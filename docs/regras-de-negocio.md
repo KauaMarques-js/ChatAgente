@@ -6,6 +6,10 @@ Origem: conversa com o usuário em 08/11/2026. A primeira solicitação autorizo
 
 ## Requisitos explícitos
 
+**RF14 (pedido posterior, autorizado em 08/11/2026):** o usuário exige o fluxo de programação do VS Code com Codex, escolhendo entre ChatGPT e Codex como agente. Não impor cotas locais de rodadas, prazo total de tarefa ou pausas obrigatórias para enviar “continuar”. Manter Parar e tratar falhas reais/limites do serviço sem contorná-los. “Ilimitado” aqui define ausência dessas cotas artificiais no aplicativo; não promete remover limites de plano, contexto ou disponibilidade da OpenAI.
+
+**RF15 (escolha confirmada em 08/11/2026):** manter ChatAgente como aplicativo independente, em vez de exigir o VS Code do usuário. Para fornecer editor, terminal e recursos reais de IDE, foi apresentada a adoção da base aberta Code OSS/VSCodium. A distribuição mantém identidade própria e licenças/avisos da base. O ambiente não é o binário oficial Microsoft VS Code e não presume acesso à loja proprietária Microsoft Marketplace.
+
 **RF13 (pedido posterior, autorizado em 08/11/2026):** lançar uma versão baixável do aplicativo para teste. Publicação autorizada no repositório existente `KauaMarques-js/ChatAgente`, com pacote Windows, instruções e limites da prévia. Instalador por usuário e ZIP para Windows x64 são escolhas técnicas reversíveis. Não autoriza consumo de inferência, despesas com assinatura digital ou alteração das propostas P01–P06.
 
 **RF12 (pedido posterior, autorizado em 08/11/2026):** ao selecionar um projeto, exibir um explorador lateral de arquivos semelhante à referência do VS Code fornecida pelo usuário, com raiz do projeto, hierarquia de pastas expansíveis, arquivos e indicação visual de seleção. Ícones por tipo, indicadores reais do Git, atualização e prévia de texto somente leitura são detalhes de implementação reversíveis. Não autoriza ampliar as permissões do agente nem confirma P01–P06.
@@ -27,7 +31,7 @@ Origem: conversa com o usuário em 08/11/2026. A primeira solicitação autorizo
 | RF07 | Acesso amplo ao computador | Ferramentas locais executam dentro do acesso efetivamente concedido |
 | RF08 | Trabalho autônomo semelhante ao Codex | Investiga, executa, verifica e relata resultado de uma tarefa |
 
-A expressão “pensar igual ao Codex” significa comportamento observável e qualidade da execução. Não estabelece identidade de modelo, acesso ao raciocínio privado ou equivalência total entre produtos. “Acesso 100%” expressa amplitude desejada; não elimina limites do Windows, permissões do usuário ou capacidades das ferramentas.
+A expressão “pensar igual ao Codex” significa comportamento observável e qualidade da execução. RF14 acrescenta como objetivo o fluxo de uso do VS Code com Codex. Isso não estabelece identidade de modelo nem acesso ao raciocínio privado; paridade de capacidades deve ser verificada, sem apresentar o MVP anterior como equivalente. “Acesso 100%” expressa amplitude desejada; não elimina limites do Windows, permissões do usuário ou capacidades das ferramentas.
 
 ## Propostas para o produto — aguardam confirmação quando afetarem a implementação
 
@@ -48,4 +52,4 @@ Interrupção deve parar o agendamento de novas ferramentas e tentar encerrar pr
 
 ## Fora do compromisso atual
 
-Não há promessa de equivalência integral ao Codex, aprendizado dos pesos do modelo, memória ilimitada, acesso administrativo automático ou compatibilidade universal com todos os aplicativos. Versão mínima do Windows, distribuição, orçamento de API e modelo serão definidos na implementação com evidências.
+Paridade com o fluxo VS Code/Codex é objetivo de RF14, sujeito à verificação das integrações. Não há promessa de identidade de modelos, aprendizado dos pesos, memória ilimitada, acesso administrativo automático ou compatibilidade universal com todos os aplicativos. Limites de conta e disponibilidade seguem o provedor. Versão mínima do Windows e capacidades efetivamente verificadas devem constar na distribuição.

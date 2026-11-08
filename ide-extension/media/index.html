@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{csp}}; script-src 'nonce-{{nonce}}'; img-src {{csp}}; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="{{style}}"><title>ChatAgente</title></head>
+<body>
+<header><h1>ChatAgente</h1><p id="directory">Abra uma pasta para começar.</p></header>
+<nav aria-label="Recursos da IDE"><button data-command="folder">Abrir pasta</button><button data-command="explorer">Explorador</button><button data-command="terminal">Terminal</button><button data-command="git">Git</button></nav>
+<section class="settings" aria-label="Agente e conexão">
+<label for="backend">Agente</label><select id="backend"><option value="chatgpt">ChatGPT</option><option value="codex">Codex</option></select>
+<label for="model">Modelo ChatGPT</label><select id="model"><option value="">Entre para carregar modelos</option></select>
+<label id="codex-label" for="codex-model" hidden>Modelo Codex (vazio = padrão do CLI)</label><input id="codex-model" hidden placeholder="Padrão do Codex" autocomplete="off"><button id="apply-model" hidden>Aplicar modelo</button>
+<div class="buttons"><button id="login" data-command="login">Entrar com ChatGPT</button><button data-command="logout">Sair</button><button id="models" data-command="models">Atualizar modelos</button></div>
+<p id="connection" role="status"></p></section>
+<div id="messages" role="log" aria-label="Conversa e ações" aria-live="polite"></div>
+<form id="composer"><label for="prompt">Sua tarefa</label><textarea id="prompt" rows="4" placeholder="Descreva o que deseja fazer no projeto…" required></textarea>
+<div class="buttons"><button id="send" type="submit">Enviar</button><button type="button" id="stop" data-command="stop">Interromper</button><button type="button" data-command="reset">Nova conversa</button></div></form>
+<p id="status" role="status">Pronto</p>
+<script nonce="{{nonce}}" src="{{script}}"></script></body></html>

@@ -2,6 +2,8 @@
 
 Etapas propostas. O objetivo final inclui navegador e controle do computador; concluir apenas o núcleo não encerra o produto completo.
 
+RF14/RF15 atualizam a direção: distribuição independente baseada em Code OSS/VSCodium, com explorador, editor, Git, depuração, extensões e terminal nativos. O seletor ChatGPT/Codex executa os agentes locais no projeto aberto. A tarefa não deve ser pausada por contagem de ferramentas ou prazo total imposto pelo ChatAgente. A validação deve cobrir abertura independente do VS Code instalado, edição/salvamento, terminal persistente com Ctrl+C e seleção/execução dos dois agentes, distinguindo simulação e inferência real. Isso não elimina limites do provedor nem equivale automaticamente a todos os serviços/extensões proprietários Microsoft/OpenAI.
+
 | Etapa | Entrega | Verificação necessária |
 | --- | --- | --- |
 | 0 | Inspeção, decisões técnicas e resolução das políticas bloqueadoras | Registrar base encontrada, versões, comandos e propostas pendentes |

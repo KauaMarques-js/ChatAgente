@@ -67,41 +67,59 @@ test('mapeia mais de 14 arquivos sem interromper a tarefa', async () => {
   assert.equal(rounds, 19);
 });
 
-test('ao atingir o orçamento, resume sem ferramentas e permite continuar com o contexto', async () => {
+test('continua além de 64 rodadas sem pausa automática nem ferramenta forçada', async () => {
   let rounds = 0;
   const events = [];
   const agent = new Agent({ workspace: { root: 'C:\\projeto', readFile: path => ({ path, content: path }) }, onEvent: event => events.push(event),
     sharing: true, client: { responses: { create: async body => {
       rounds++;
-      if (rounds <= 64) return response([readCall(rounds)]);
-      if (rounds === 65) {
-        assert.equal(body.tool_choice, 'none');
-        assert.equal(body.tools[0].type, 'namespace');
-        assert.match(body.instructions, /Resuma/);
-        return response([], 'Li 64 arquivos. Falta revisar o módulo final. Envie continuar.');
-      }
       assert.equal(body.tool_choice, undefined);
-      assert.ok(body.input.some(item => item.type === 'function_call_output' && item.call_id === 'read_64'));
+      assert.equal(body.tools[0].type, 'namespace');
+      if (rounds <= 100) return response([readCall(rounds)]);
+      assert.ok(body.input.some(item => item.type === 'function_call_output' && item.call_id === 'read_100'));
       return response([], 'Revisão concluída.');
     } } } });
-  assert.match(await agent.send('Mapeie o projeto'), /Falta revisar/);
-  assert.equal(events.filter(event => event.type === 'paused').length, 1);
-  assert.equal(await agent.send('continuar'), 'Revisão concluída.');
-  assert.equal(rounds, 66);
+  assert.equal(await agent.send('Mapeie o projeto'), 'Revisão concluída.');
+  assert.equal(events.filter(event => event.type === 'paused').length, 0);
+  assert.equal(rounds, 101);
 });
 
-test('detecta consultas idênticas sem progresso e pede um resumo', async () => {
+test('consultas repetidas não forçam pausa nem exigem continuar', async () => {
   let requests = 0;
   let reads = 0;
   const agent = new Agent({ workspace: { root: 'C:\\projeto', readFile: () => { reads++; return { content: 'inalterado' }; } },
     client: { responses: { create: async body => {
       requests++;
-      if (body.tool_choice === 'none') return response([], 'Pausado por repetição.');
+      assert.equal(body.tool_choice, undefined);
+      if (requests === 6) return response([], 'Concluído sem pausa.');
       return response([readCall(requests, 'README.md')]);
     } } } });
-  assert.equal(await agent.send('Investigue'), 'Pausado por repetição.');
-  assert.equal(reads, 3);
-  assert.equal(requests, 4);
+  assert.equal(await agent.send('Investigue'), 'Concluído sem pausa.');
+  assert.equal(reads, 5);
+  assert.equal(requests, 6);
+});
+
+test('comando do agente não recebe o limite de 30 segundos e mantém cancelamento', async () => {
+  const controller = new AbortController();
+  let received;
+  const agent = new Agent({ workspace: { root: 'C:\\projeto', command: async (...args) => { received = args; return { exitCode: 0 }; } }, approve: async () => true });
+  await agent.executeTool('run_command', { command: 'npm test' }, controller.signal);
+  assert.equal(received[1], controller.signal);
+  assert.equal(received[2].timeout, 0);
+});
+
+test('tarefa sem cota continua até Parar e preserva resultados anteriores', async () => {
+  const controller = new AbortController();
+  let rounds = 0;
+  const agent = new Agent({ workspace: { root: 'C:\\projeto', readFile: path => ({ path, content: path }) },
+    client: { responses: { create: async () => {
+      rounds++;
+      if (rounds === 150) controller.abort();
+      return response([readCall(rounds)]);
+    } } } });
+  await assert.rejects(agent.send('Investigue até eu parar', controller.signal), /interrompida/);
+  assert.equal(rounds, 150);
+  assert.ok(agent.history.some(item => item.type === 'function_call_output' && item.call_id === 'read_149'));
 });
 
 test('leitura em lote mantém bloqueios, erros por arquivo e limite de conteúdo', async t => {

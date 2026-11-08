@@ -1,5 +1,13 @@
 # Arquitetura proposta
 
+## Arquitetura atual — 0.2.0 (08/11/2026)
+
+Distribuição independente Code OSS/VSCodium, verificada por hash em `ide-base.json`, com nome/perfil ChatAgente e integração embutida em `ide-extension/`. O workbench fornece editor, explorador, Git, terminal/PTY, busca, extensões e depuração. O extension host executa os agentes ChatGPT (runtime próprio `src/agent.cjs`) e Codex (SDK oficial), com o mesmo seletor na webview/status bar. Isso substitui a reconstrução manual de recursos da IDE no MVP HTML anterior.
+
+`scripts/build-ide.cjs` prepara a base, copia os quatro módulos de runtime e dependências de produção, preserva licenças/avisos e gera os pacotes com electron-builder/NSIS. A integração não exige um VS Code instalado. A loja Open VSX é preservada; serviços/extensões proprietários não são presumidos compatíveis. O código Electron anterior permanece para histórico e `dev:legacy`.
+
+ChatGPT usa OAuth, AES-GCM com chave no SecretStorage e coordenação entre janelas por named pipe. A webview não recebe tokens nem acesso genérico a comandos da IDE. Escritas diretas mantêm o executor validado e recusam buffers não salvos. Codex usa perfil/configuração normais do usuário, sandbox e autorização por tarefa existentes. Não há cotas locais de rodadas, prazo global ou pausa obrigatória; o sinal Parar é mantido. As descrições do MVP abaixo são históricas.
+
 ## Implementado no MVP (08/11/2026)
 
 Electron + Node.js com frontend HTML/JS, isolamento de contexto e ponte de IPC. O processo principal escolhe entre `Agent` (Responses API com OAuth do plano ChatGPT, sem API key) e `CodexAgent` (SDK Codex/CLI); ambos usam uma pasta de trabalho por vez e exibem eventos na mesma interface. A autenticação de plano ChatGPT é feita no processo principal em `src/chatgpt-auth.cjs`, com tokens criptografados fora do repositório. O executor `src/workspace.cjs` aplica proteções de arquivos para o agente ChatGPT. O Codex usa seu próprio sandbox `workspace-write`, autorizado por tarefa. As seções abaixo preservam a visão de arquitetura de longo prazo.

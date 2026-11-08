@@ -1,5 +1,16 @@
 # Estado do projeto
 
+## Incremento 8 — IDE independente Code OSS, 0.2.0 (08/11/2026)
+
+- RF14/RF15 confirmados: manter aplicativo separado e buscar o fluxo de programação do VS Code, com seleção ChatGPT/Codex. Removidas cotas locais de rodadas, prazo total, pausa por repetição e timeout de 30 segundos dos comandos do agente. A execução continua cancelável. Limites do provedor e do contexto não podem ser convertidos em uso ilimitado pelo aplicativo.
+- Base da distribuição alterada para Code OSS/VSCodium 1.143.17232, fixada em `ide-base.json` com SHA-256 oficial. Recursos nativos: explorador, edição/salvamento/abas, terminal PowerShell persistente, Git, busca, extensões e depuração. Loja Open VSX, licenças e avisos de terceiros preservados; nenhuma promessa de serviços proprietários Microsoft. Identidade ChatAgente e perfis próprios; não depende do VS Code instalado.
+- Integração em `ide-extension/`: painel e status bar com escolha dos dois agentes/modelos, login ChatGPT OAuth, login Codex no terminal, streaming, aprovações, Parar e conversa em memória. Codex herda perfil/configuração locais normais. SecretStorage guarda a chave AES-GCM; named pipe coordena inicialização/refresh/logout entre janelas. Nenhuma credencial pessoal entra na distribuição.
+- `npm run dev` prepara/abre a IDE nativa; `prepare:ide` baixa/verifica a base e copia os módulos de `src/` e dependências de produção; `dist:win` empacota a IDE pronta. Protótipo Electron preservado em `dev:legacy`. Perfis/variáveis herdadas de outro VS Code são removidos pelos lançadores de desenvolvimento/teste para evitar reutilização acidental do host.
+- Verificação: `npm test`, **38/38 aprovados**. Inclui 100 rodadas sem pausa/cota, cancelamento na rodada 150, shell sem timeout local, proteção de buffers não salvos e credenciais entre janelas. `npm run test:ide` aprovado no runtime real: seleção dos dois agentes, editor/salvamento, buffer protegido, PowerShell persistente, Ctrl+C e Git nativo. Abertura normal do `ChatAgente.exe`, sem flags de desenvolvimento, confirmou ativação da integração embutida. Capturas `out/ide-native.png` e `out/ide-standalone.png` revisadas.
+- Limites reais: inferência/login com conta não validados por teste controlado; não há atualização automática da distribuição nem histórico persistente do agente. Paridade de todas as capacidades da extensão proprietária Codex não foi demonstrada. Escritas via shell/Codex externo não passam pelo guard de buffers; buffers são exigidos salvos ao iniciar Codex. P01–P06 continuam propostas. ZIP deve ser extraído em pasta nova, sem sobrepor o formato do MVP antigo.
+
+Fontes consultadas em 08/11/2026: https://github.com/VSCodium/vscodium, https://code.visualstudio.com/api/extension-guides/webview, https://code.visualstudio.com/api/references/vscode-api e https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations.
+
 ## Incremento 7 — correção do limite de ferramentas, 0.1.1 (08/11/2026)
 
 - Falha relatada ao mapear a documentação: o orçamento fixo de 14 rodadas, com chamadas paralelas desativadas, interrompia leituras sequenciais; o tratamento genérico apagava todo o histórico ao atingir o limite.
@@ -91,4 +102,4 @@ Construir uma IDE Windows com chat OpenAI e ferramentas locais. O usuário solic
 
 ## Limites atuais e próximos passos
 
-Não há histórico persistido, automação de navegador, controle de outras janelas Windows ou editor com salvamento. O incremento 6 adiciona os pacotes Windows. Shell aprovado pode acessar o computador com os privilégios atuais do usuário, além da pasta do projeto. Discutir os modos e as permissões de P01/P02 antes de introduzir controle mais amplo ou automático. Concluir o login ChatGPT pelo fluxo atual para teste manual da tarefa ponta a ponta; depois considerar navegador, Git avançado e persistência.
+O incremento 8 adiciona editor com salvamento e terminal/recursos nativos da IDE. Conversa persistente do agente, automação de navegador e controle geral do Windows ainda não foram entregues/verificados. Shell aprovado pode acessar o computador com os privilégios atuais do usuário, além da pasta do projeto. Preservar P01/P02 como propostas ao introduzir novos modos de acesso. Validar a jornada real de programação/autenticação dos dois agentes com uma conta, depois avançar nas integrações pendentes.

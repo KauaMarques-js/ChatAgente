@@ -1,8 +1,5 @@
 const OpenAI = require('openai');
 const { toResponseInputItems } = require('openai/lib/responses/ResponseInputItems');
-const { createHash } = require('node:crypto');
-
-const MAX_ROUNDS = 64;
 
 const tools = [
   {
@@ -68,17 +65,8 @@ class Agent {
     this.history.push({ role: 'user', content: message.trim() });
     let checkpoint = this.history.length;
     try {
-      const timeout = AbortSignal.timeout(600_000);
-      signal = AbortSignal.any([...(signal ? [signal] : []), timeout]);
-      let lastReadSignature;
-      let repeatedReads = 0;
-      let pauseReason = '';
-      const summaryDeadline = Date.now() + 570_000;
-      for (let round = 0; round <= MAX_ROUNDS; round += 1) {
-        if (signal.aborted) throw new Error(timeout.aborted ? 'Tempo da tarefa esgotado. O contexto foi preservado; envie continuar para retomar.' : 'Tarefa interrompida pelo usuário.');
-        if (!pauseReason && round === MAX_ROUNDS) pauseReason = `Foram executadas ${MAX_ROUNDS} rodadas de ferramentas nesta etapa.`;
-        if (!pauseReason && Date.now() >= summaryDeadline) pauseReason = 'A etapa está próxima do limite de tempo.';
-        if (pauseReason) this.onEvent({ type: 'paused', reason: pauseReason });
+      while (true) {
+        if (signal?.aborted) throw new Error('Tarefa interrompida pelo usuário.');
         let result;
         let streamingText = '';
         const client = this.clientFactory ? await this.clientFactory() : this.client;
@@ -96,12 +84,11 @@ class Agent {
             'Antes de sobrescrever um arquivo, leia-o. Prefira alterações pequenas e comandos de verificação.',
             'Comandos PowerShell exigem consentimento explícito; se negados, não tente contornar.',
             'Você não controla o Windows além das ferramentas efetivamente disponíveis neste MVP.',
-            ...(pauseReason ? [`Esta etapa foi pausada: ${pauseReason} Não execute ferramentas. Resuma o que foi realmente observado/feito, o que falta e oriente o usuário a enviar continuar para retomar. Não declare concluído o trabalho pendente.`] : []),
+            'Continue a tarefa solicitada até concluir, ocorrer um impedimento real ou o usuário interromper. Não peça continuar por número de rodadas ou tempo de trabalho.',
           ].join('\n'),
           input: this.history,
           tools: this.sharing ? [{ type: 'namespace', name: 'local', description: 'Ferramentas de desenvolvimento do ChatAgente.', tools }] : tools,
           parallel_tool_calls: false,
-          ...(pauseReason ? { tool_choice: 'none' } : {}),
           include: ['reasoning.encrypted_content'],
           store: false,
           stream: true,
@@ -123,16 +110,14 @@ class Agent {
         }
         if (!result || result.status !== 'completed') throw new Error('A OpenAI não concluiu a resposta.');
         const calls = result.output.filter(item => item.type === 'function_call');
-        if (pauseReason && calls.length) throw new Error('O agente solicitou ferramentas durante a pausa. O contexto anterior foi preservado; envie continuar.');
         this.history.push(...toResponseInputItems(result.output));
         if (!streamingText && result.output_text) this.onEvent({ type: 'delta', text: result.output_text });
-        if (calls.length === 0) return result.output_text || streamingText || (pauseReason ? `${pauseReason} Envie continuar para retomar com o contexto preservado.` : '(Sem texto na resposta.)');
+        if (calls.length === 0) return result.output_text || streamingText || '(Sem texto na resposta.)';
 
-        const reads = [];
         for (const call of calls) {
           let output;
           try {
-            if (signal.aborted) throw new Error('Tarefa interrompida; ferramenta não iniciada.');
+            if (signal?.aborted) throw new Error('Tarefa interrompida; ferramenta não iniciada.');
             const args = JSON.parse(call.arguments);
             this.onEvent({ type: 'action', name: call.name, args: previewArgs(call.name, args), status: 'executando' });
             output = await this.executeTool(call.name, args, signal);
@@ -142,14 +127,8 @@ class Agent {
             this.onEvent({ type: 'action', name: call.name, status: 'falhou', output: error.message });
           }
           this.history.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(output) });
-          const name = call.name.replace(/^local\./, '');
-          if (['list_files', 'read_file', 'read_files', 'git_status', 'git_diff'].includes(name)) reads.push([name, call.arguments, output]);
         }
         checkpoint = this.history.length;
-        const signature = reads.length === calls.length ? createHash('sha256').update(JSON.stringify(reads)).digest('hex') : null;
-        repeatedReads = signature && signature === lastReadSignature ? repeatedReads + 1 : 1;
-        lastReadSignature = signature;
-        if (signature && repeatedReads >= 3) pauseReason = 'A mesma consulta retornou o mesmo resultado três vezes seguidas, sem progresso.';
       }
     } catch (error) {
       // Remove somente a rodada incompleta; mantém as ações já respondidas para retomada.
@@ -194,7 +173,7 @@ class Agent {
           throw new Error('Comando recusado pelo usuário.');
         }
         if (signal?.aborted) throw new Error('Tarefa interrompida.');
-        return this.workspace.command(args.command, signal);
+        return this.workspace.command(args.command, signal, { timeout: 0 });
       }
       default: throw new Error(`Ferramenta desconhecida: ${name}`);
     }

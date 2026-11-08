@@ -1,0 +1,23 @@
+{
+  "name": "chatagente",
+  "displayName": "ChatAgente",
+  "description": "ChatGPT e Codex nos recursos nativos da IDE.",
+  "version": "0.2.0",
+  "publisher": "chatagente",
+  "license": "MIT",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./extension.cjs",
+  "extensionKind": ["workspace"],
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": false },
+  "scripts": { "test": "node --test test/*.test.cjs" },
+  "contributes": {
+    "commands": [
+      { "command": "chatagente.open", "title": "ChatAgente: Abrir chat" },
+      { "command": "chatagente.selectAgent", "title": "ChatAgente: Selecionar agente" }
+    ],
+    "keybindings": [{ "command": "workbench.action.terminal.toggleTerminal", "key": "ctrl+'" }],
+    "viewsContainers": { "activitybar": [{ "id": "chatagente", "title": "ChatAgente", "icon": "media/icon.svg" }] },
+    "views": { "chatagente": [{ "type": "webview", "id": "chatagente.chat", "name": "ChatAgente" }] }
+  }
+}

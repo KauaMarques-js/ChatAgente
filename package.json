@@ -1,16 +1,20 @@
 {
   "name": "chatagente",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "description": "Agente desktop Windows com chat OpenAI e ferramentas locais",
   "author": "KauaMarques-js",
   "main": "src/main.cjs",
   "scripts": {
-    "dev": "node scripts/launch.cjs",
-    "start": "node scripts/launch.cjs",
+    "dev": "node scripts/launch-ide.cjs",
+    "start": "node scripts/launch-ide.cjs",
+    "dev:legacy": "node scripts/launch.cjs",
+    "prepare:ide": "node scripts/build-ide.cjs --prepare",
     "test": "node --test",
-    "dist:win": "electron-builder --win nsis zip --x64 --publish never"
+    "test:ide": "node scripts/verify-ide.cjs",
+    "dist:win": "node scripts/build-ide.cjs",
+    "dist:legacy": "electron-builder --win nsis zip --x64 --publish never"
   },
   "dependencies": {
     "@openai/codex-sdk": "^0.167.0",
