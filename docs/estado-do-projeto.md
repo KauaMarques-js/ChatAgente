@@ -8,6 +8,7 @@
 - Verificação: `npm test`, **29/29 aprovados**, com regressões para 18 arquivos, limite de 64 rodadas e continuação, repetição sem progresso, leitura em lote com bloqueios/cota, falha de rede após escrita e cancelamento entre múltiplas ferramentas. Testes de inferência simulados, sem conta ou consumo real.
 - Verificação no Electron com inferência simulada e ciclo real do agente: pausa por repetição, resumo, status pausado e continuação com os resultados anteriores. Corrigida também uma corrida entre a resposta IPC e os eventos: conclusão agora usa o mesmo canal ordenado dos eventos de progresso; evita resumo duplicado/status preso em “Resumindo”.
 - Atualização 0.1.1 preparada para substituir o download de teste 0.1.0. P01–P06 permanecem propostas. Os limites técnicos não prometem tarefas ilimitadas nem memória persistente.
+- Publicada: https://github.com/KauaMarques-js/ChatAgente/releases/tag/v0.1.1, commit `05542eb`. Executável empacotado aberto e validado novamente; arquivos do agente, processo principal, renderer e executor extraídos do ASAR e comparados com o fonte corrigido. ZIP e NSIS passaram no teste de integridade. Os três links públicos retornaram HTTP 200 e seus tamanhos/hashes conferiram. SHA-256 do instalador: `fffbcb6a819100bc1d114d5893d39be5ab69ff69e4a3c3b18e8624a244ad3397`; ZIP: `2efd5ebcb88201b28989d9183c69dbfead39d164edd9b66f226a89b0cec4130f`.
 
 Documentação oficial consultada em 08/11/2026: https://developers.openai.com/api/docs/guides/function-calling (`tool_choice: none`, ciclo de ferramentas e resultados correspondentes).
 
