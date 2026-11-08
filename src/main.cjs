@@ -1,4 +1,5 @@
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true });
 const { app, BrowserWindow, ipcMain, dialog, session, safeStorage, shell } = require('electron');
 const OpenAI = require('openai');
@@ -47,7 +48,9 @@ function makeAgents() {
       } } : {}),
       onEvent: notify, approve: approveAction,
     }),
-    codex: new CodexAgent({ workspace, onEvent: notify }),
+    codex: new CodexAgent({ workspace, onEvent: notify,
+      ...(app.isPackaged ? { sdkModule: pathToFileURL(path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@openai', 'codex-sdk', 'dist', 'index.js')).href } : {}),
+    }),
   };
 }
 
@@ -83,7 +86,7 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, reply) => reply(false));
-  workspace = new Workspace(process.cwd());
+  workspace = new Workspace(app.isPackaged ? app.getPath('documents') : process.cwd());
   auth = new ChatGPTAuth({ directory: app.getPath('userData'), safeStorage,
     openBrowser: async url => {
       if (new URL(url).origin !== 'https://auth.openai.com') throw new Error('Destino de autenticação inválido.');
@@ -102,6 +105,13 @@ app.on('window-all-closed', () => {
 });
 
 ipcMain.handle('app:info', () => info());
+function explorerWorkspace(request) {
+  if (request?.directory !== workspace.root) throw new Error('O projeto mudou. Atualize o explorador.');
+  return workspace;
+}
+ipcMain.handle('project:list', (_event, request) => explorerWorkspace(request).listDirectory(request.path));
+ipcMain.handle('project:changes', (_event, request) => explorerWorkspace(request).gitChanges());
+ipcMain.handle('project:read', (_event, request) => explorerWorkspace(request).readFile(request.path, { track: false }));
 ipcMain.handle('project:choose', async () => {
   if (activeController || terminalController || auth?.signingIn) throw new Error('Interrompa a execução antes de trocar o projeto.');
   const selected = await dialog.showOpenDialog(window, {
@@ -206,8 +216,18 @@ ipcMain.handle('terminal:run', async (_event, command) => {
   if (activeController || terminalController) throw new Error('Já há uma execução em andamento.');
   const controller = new AbortController();
   terminalController = controller;
-  try { return await workspace.command(command, controller.signal); }
+  try {
+    return await workspace.command(command, controller.signal, {
+      timeout: 0,
+      onOutput: text => notify({ type: 'terminal-output', text }),
+    });
+  }
   finally { if (terminalController === controller) terminalController = null; }
+});
+
+ipcMain.handle('terminal:stop', () => {
+  terminalController?.abort();
+  return true;
 });
 
 ipcMain.handle('git:status', async () => workspace.gitStatus());

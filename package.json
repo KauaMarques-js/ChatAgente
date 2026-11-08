@@ -4,11 +4,13 @@
   "private": true,
   "license": "MIT",
   "description": "Agente desktop Windows com chat OpenAI e ferramentas locais",
+  "author": "KauaMarques-js",
   "main": "src/main.cjs",
   "scripts": {
     "dev": "node scripts/launch.cjs",
     "start": "node scripts/launch.cjs",
-    "test": "node --test"
+    "test": "node --test",
+    "dist:win": "electron-builder --win nsis zip --x64 --publish never"
   },
   "dependencies": {
     "@openai/codex-sdk": "^0.167.0",
@@ -16,7 +18,26 @@
     "jose": "^6.2.16",
     "openai": "^7.53.0"
   },
+  "build": {
+    "appId": "io.github.kauamarquesjs.chatagente",
+    "productName": "ChatAgente",
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "package.json", "LICENSE", "README.md"],
+    "asarUnpack": ["node_modules/@openai/codex*/**/*"],
+    "win": {
+      "target": ["nsis", "zip"],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "ChatAgente-Setup-${version}-${arch}.${ext}"
+    }
+  },
   "devDependencies": {
-    "electron": "^45.2.3"
+    "electron": "^45.2.3",
+    "electron-builder": "26.18.0"
   }
 }

@@ -2,6 +2,12 @@ const api = window.chatAgente;
 const $ = id => document.getElementById(id);
 let busy = false;
 let reply;
+let terminalBusy = false;
+let terminalStopping = false;
+const terminalHistory = [];
+let historyIndex = 0;
+let terminalDraft = '';
+let previousFocus;
 
 function scrollEnd(element) { element.scrollTop = element.scrollHeight; }
 function bubble(text, type = '') {
@@ -18,7 +24,10 @@ function setBusy(isBusy, label = 'Pronto') {
   busy = isBusy;
   $('send').disabled = isBusy;
   $('stop').disabled = !isBusy;
-  $('terminal-input').disabled = isBusy;
+  $('terminal-input').disabled = isBusy && !terminalBusy;
+  $('terminal-input').readOnly = terminalBusy;
+  $('terminal-run').disabled = isBusy;
+  $('terminal-stop').disabled = !terminalBusy || terminalStopping;
   $('backend-select').disabled = isBusy;
   $('model-select').disabled = isBusy;
   $('sign-in').disabled = isBusy;
@@ -48,11 +57,66 @@ function activity(name, details = '', status = '') {
 }
 function appendTerminal(output) {
   const el = $('terminal-output');
-  el.textContent = `${el.textContent}\n${output}`.slice(-25_000);
+  el.textContent = `${el.textContent}${output}`.slice(-25_000);
   scrollEnd(el);
 }
+function toggleTerminal() {
+  const terminal = $('terminal');
+  terminal.hidden = !terminal.hidden;
+  document.querySelector('.layout').classList.toggle('terminal-hidden', terminal.hidden);
+  $('toggle-terminal').setAttribute('aria-expanded', String(!terminal.hidden));
+  if (terminal.hidden) {
+    if (terminal.contains(document.activeElement)) {
+      const target = previousFocus?.isConnected && !previousFocus.disabled ? previousFocus : $('prompt');
+      target.focus();
+    }
+  } else {
+    previousFocus = document.activeElement;
+    (busy && !terminalBusy ? $('terminal-output') : $('terminal-input')).focus();
+    scrollEnd($('terminal-output'));
+  }
+}
+async function interruptTerminal() {
+  if (!terminalBusy || terminalStopping) return;
+  terminalStopping = true;
+  $('terminal-stop').disabled = true;
+  $('terminal-status').textContent = 'Interrompendo...';
+  try { await api.stopTerminal(); }
+  catch (error) {
+    terminalStopping = false;
+    $('terminal-stop').disabled = !terminalBusy;
+    appendTerminal(`\nErro ao interromper: ${error.message}\n`);
+  }
+}
+
+$('toggle-terminal').addEventListener('click', toggleTerminal);
+$('terminal-close').addEventListener('click', toggleTerminal);
+$('terminal-stop').addEventListener('click', interruptTerminal);
+$('terminal-clear').addEventListener('click', () => { $('terminal-output').textContent = ''; });
+document.addEventListener('keydown', event => {
+  if (event.isComposing || event.repeat || !event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+  if (event.key === "'") {
+    event.preventDefault();
+    toggleTerminal();
+  } else if (event.key.toLowerCase() === 'c' && terminalBusy && $('terminal').contains(document.activeElement)) {
+    const input = $('terminal-input');
+    const selectedInput = document.activeElement === input && input.selectionStart !== input.selectionEnd;
+    if (selectedInput || window.getSelection()?.toString()) return;
+    event.preventDefault();
+    void interruptTerminal();
+  }
+});
+$('terminal-input').addEventListener('keydown', event => {
+  if (busy || event.isComposing || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  event.preventDefault();
+  if (historyIndex === terminalHistory.length) terminalDraft = event.target.value;
+  historyIndex = Math.max(0, Math.min(terminalHistory.length, historyIndex + (event.key === 'ArrowUp' ? -1 : 1)));
+  event.target.value = terminalHistory[historyIndex] ?? terminalDraft;
+});
 function setInfo(info) {
   $('project-path').textContent = info.directory;
+  $('project-path').title = info.directory;
+  window.projectExplorer.setProject(info.directory);
   $('backend-select').value = info.backend;
   $('chatgpt-settings').hidden = info.backend !== 'chatgpt';
   $('codex-settings').hidden = info.backend !== 'codex';
@@ -119,7 +183,9 @@ $('usage').addEventListener('click', async () => {
 });
 
 api.onEvent(event => {
-  if (event.type === 'delta') {
+  if (event.type === 'terminal-output') {
+    appendTerminal(event.text);
+  } else if (event.type === 'delta') {
     if (!reply) reply = bubble('');
     reply.textContent += event.text;
     scrollEnd($('messages'));
@@ -137,6 +203,7 @@ $('composer').addEventListener('submit', async event => {
   event.preventDefault();
   const prompt = $('prompt').value.trim();
   if (!prompt || busy) return;
+  window.projectExplorer.closePreview();
   $('prompt').value = '';
   bubble(prompt, 'user');
   reply = null;
@@ -148,7 +215,7 @@ $('composer').addEventListener('submit', async event => {
   } catch (error) {
     showError(error);
     setBusy(false, 'Falhou');
-  } finally { reply = null; $('prompt').focus(); }
+  } finally { reply = null; $('prompt').focus(); void window.projectExplorer.refresh(); }
 });
 
 $('prompt').addEventListener('keydown', event => {
@@ -183,13 +250,27 @@ $('terminal-form').addEventListener('submit', async event => {
   const command = $('terminal-input').value.trim();
   if (!command || busy) return;
   $('terminal-input').value = '';
-  appendTerminal(`PS> ${command}`);
+  if (terminalHistory.at(-1) !== command) terminalHistory.push(command);
+  if (terminalHistory.length > 100) terminalHistory.shift();
+  historyIndex = terminalHistory.length;
+  terminalDraft = '';
+  appendTerminal(`\nPS> ${command}\n`);
+  terminalBusy = true;
+  terminalStopping = false;
+  $('terminal-status').textContent = 'Executando...';
   setBusy(true, 'PowerShell...');
   try {
     const result = await api.terminal(command);
-    appendTerminal(`${result.output}\n[código ${result.exitCode}${result.timedOut ? ', tempo esgotado' : ''}]`);
-  } catch (error) { appendTerminal(`Erro: ${error.message}`); }
-  finally { setBusy(false); $('terminal-input').focus(); }
+    appendTerminal(`\n[código ${result.exitCode}${result.timedOut ? ', tempo esgotado' : ''}]\n`);
+  } catch (error) { appendTerminal(`\n${terminalStopping ? 'Execução interrompida.' : `Erro: ${error.message}`}\n`); }
+  finally {
+    terminalBusy = false;
+    terminalStopping = false;
+    $('terminal-status').textContent = 'Pronto';
+    setBusy(false);
+    void window.projectExplorer.refresh();
+    if (!$('terminal').hidden && $('terminal').contains(document.activeElement)) $('terminal-input').focus();
+  }
 });
 
 api.info().then(async info => { setInfo(info); await refreshModels(info); }).catch(showError);

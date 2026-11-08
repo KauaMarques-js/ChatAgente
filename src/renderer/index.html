@@ -10,14 +10,15 @@
   <body>
     <header class="topbar">
       <div class="brand"><span class="logo">◇</span><span>Chat<span class="accent">Agente</span></span><small>LOCAL • MVP</small></div>
-      <div class="connection"><span id="api-dot" class="dot"></span><span id="api-state">Verificando API...</span></div>
+      <div class="connection"><button id="toggle-terminal" type="button" class="tiny-btn" aria-controls="terminal" aria-expanded="true" title="Abrir/ocultar PowerShell (Ctrl + ')">⌘ Terminal · Ctrl + '</button><span id="api-dot" class="dot"></span><span id="api-state">Verificando API...</span></div>
     </header>
     <main class="layout">
       <aside class="sidebar">
-        <div class="label">PROJETO ATUAL</div>
-        <div id="project-path" class="project-path">Carregando...</div>
-        <button id="choose-project" class="btn outline">▣ Selecionar pasta</button>
-        <div class="separator"></div>
+        <div class="explorer-heading"><strong>EXPLORADOR</strong><div><button id="choose-project" class="tiny-btn" title="Selecionar pasta" aria-label="Selecionar pasta de projeto">▣</button><button id="refresh-explorer" class="tiny-btn" title="Atualizar arquivos" aria-label="Atualizar explorador">↻</button><button id="collapse-explorer" class="tiny-btn" title="Recolher pastas" aria-label="Recolher pastas">⊟</button></div></div>
+        <div id="project-path" class="project-path" title="Pasta do projeto">Carregando...</div>
+        <nav id="explorer" class="explorer" aria-label="Arquivos do projeto"></nav>
+        <div id="explorer-message" class="explorer-message" role="status"></div>
+        <details class="project-settings"><summary>Agente e ferramentas</summary><div class="settings-content">
         <label class="label" for="backend-select">AGENTE DE IA</label>
         <select id="backend-select" class="sidebar-select" aria-label="Escolha o agente">
           <option value="chatgpt">ChatGPT</option>
@@ -40,8 +41,13 @@
           <button id="reset-chat" class="btn ghost">↻ Nova conversa</button>
           <p class="muted small">Os comandos do agente e alterações em arquivos pedem sua autorização. O terminal manual executa o que você digitar.</p>
         </div>
+        </div></details>
       </aside>
       <section class="chat-pane">
+        <div id="file-preview" class="file-preview" hidden>
+          <div class="pane-heading"><span id="file-title"></span><div><span class="muted small">Prévia · somente leitura</span><button id="close-preview" class="tiny-btn" aria-label="Voltar ao chat">✕</button></div></div>
+          <pre id="file-content" tabindex="0"></pre>
+        </div>
         <div class="pane-heading"><h1>Agente de programação</h1><span id="task-status">Pronto</span></div>
         <div id="messages" class="messages" aria-live="polite">
           <div class="welcome"><div class="welcome-icon">✳</div><h2>O que vamos construir?</h2><p>Selecione um projeto, descreva uma tarefa e acompanhe as ferramentas executadas em tempo real.</p><p class="example">Exemplo: “Leia o README, localize o bug e corrija. Depois execute os testes.”</p></div>
@@ -54,13 +60,14 @@
       <aside class="activity-pane">
         <div class="pane-heading"><h2>Atividade</h2><button id="clear-log" class="tiny-btn">Limpar</button></div>
         <div id="activity" class="activity" aria-live="polite"><p class="muted small">As chamadas de ferramentas aparecerão aqui.</p></div>
-        <div class="terminal">
-          <div class="terminal-title"><span>⌘ PowerShell</span><span class="muted small">pasta do projeto</span></div>
-          <pre id="terminal-output" aria-live="polite">Terminal pronto.</pre>
-          <form id="terminal-form" class="terminal-form"><span>PS&gt;</span><input id="terminal-input" autocomplete="off" spellcheck="false" placeholder="Digite um comando..." aria-label="Comando PowerShell" /><button type="submit" class="tiny-btn">↵</button></form>
-        </div>
       </aside>
+      <section id="terminal" class="terminal" aria-label="Terminal PowerShell">
+        <div class="terminal-title"><span>⌘ PowerShell <span id="terminal-status" class="muted small">Pronto</span></span><div><span class="muted small">Ctrl + C interrompe · ↑/↓ histórico</span><button id="terminal-stop" type="button" class="tiny-btn" disabled>■ Interromper</button><button id="terminal-clear" type="button" class="tiny-btn">Limpar</button><button id="terminal-close" type="button" class="tiny-btn" aria-label="Ocultar terminal" title="Ocultar (Ctrl + ')">✕</button></div></div>
+        <pre id="terminal-output" tabindex="0" aria-label="Saída do PowerShell" aria-live="polite">Terminal pronto.</pre>
+        <form id="terminal-form" class="terminal-form"><span>PS&gt;</span><input id="terminal-input" autocomplete="off" spellcheck="false" placeholder="Digite um comando..." aria-label="Comando PowerShell" /><button id="terminal-run" type="submit" class="tiny-btn" aria-label="Executar comando">↵</button></form>
+      </section>
     </main>
+    <script src="explorer.js"></script>
     <script src="renderer.js"></script>
   </body>
 </html>

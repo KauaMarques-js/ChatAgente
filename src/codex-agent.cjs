@@ -1,10 +1,10 @@
 // Codex SDK: usa a autenticação do Codex CLI do usuário, em thread separada.
 class CodexAgent {
-  constructor({ workspace, onEvent, codexFactory }) {
+  constructor({ workspace, onEvent, codexFactory, sdkModule = '@openai/codex-sdk' }) {
     this.workspace = workspace;
     this.onEvent = onEvent;
     this.codexFactory = codexFactory || (async () => {
-      const { Codex } = await import('@openai/codex-sdk');
+      const { Codex } = await import(sdkModule);
       return new Codex();
     });
     this.thread = null;

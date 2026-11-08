@@ -6,6 +6,12 @@ Origem: conversa com o usuário em 08/11/2026. A primeira solicitação autorizo
 
 ## Requisitos explícitos
 
+**RF13 (pedido posterior, autorizado em 08/11/2026):** lançar uma versão baixável do aplicativo para teste. Publicação autorizada no repositório existente `KauaMarques-js/ChatAgente`, com pacote Windows, instruções e limites da prévia. Instalador por usuário e ZIP para Windows x64 são escolhas técnicas reversíveis. Não autoriza consumo de inferência, despesas com assinatura digital ou alteração das propostas P01–P06.
+
+**RF12 (pedido posterior, autorizado em 08/11/2026):** ao selecionar um projeto, exibir um explorador lateral de arquivos semelhante à referência do VS Code fornecida pelo usuário, com raiz do projeto, hierarquia de pastas expansíveis, arquivos e indicação visual de seleção. Ícones por tipo, indicadores reais do Git, atualização e prévia de texto somente leitura são detalhes de implementação reversíveis. Não autoriza ampliar as permissões do agente nem confirma P01–P06.
+
+**RF11 (pedido posterior, autorizado em 08/11/2026):** PowerShell integrado com atalhos semelhantes aos de uma IDE: `Ctrl + '` abre/oculta o painel e `Ctrl + C` interrompe a execução com foco no terminal. A interrupção encerra o comando, mantendo o aplicativo aberto; com texto selecionado, o atalho preserva a cópia. O painel exibe saída em tempo real e permite acompanhar comandos duradouros como `npm run dev`. Histórico pelas setas e botões de controle são detalhes de implementação reversíveis. A sessão PowerShell persistente e programas interativos continuam como evolução futura.
+
 **RF10 (pedido posterior, autorizado em 08/11/2026):** projeto gratuito e open source, com login oficial ChatGPT sem exigir chave de API. O agente ChatGPT da aplicação usa OAuth e não recorre automaticamente a API key. Gratuidade do software não garante inferência gratuita; respeitar elegibilidade, permissões e limites da conta, sem prometer acesso irrestrito ou contornar cobrança. Codex mantém a integração independente solicitada em RF09.
 
 **RF09 (pedido posterior, autorizado em 08/11/2026):** selecionar entre **ChatGPT** e **Codex** como agentes de programação, com autenticação e execução reais para ambos. ChatGPT usa uma integração própria com ferramentas locais; Codex usa o SDK/CLI oficial. O modo selecionado deve ficar visível e a troca deve exigir tarefa anterior finalizada.

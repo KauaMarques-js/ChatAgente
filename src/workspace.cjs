@@ -44,7 +44,7 @@ function getSafePath(root, relativePath, { canCreate = false } = {}) {
   return target;
 }
 
-function runProcess(exe, args, { cwd, signal, timeout = 30_000, maxChars = LIMIT } = {}) {
+function runProcess(exe, args, { cwd, signal, timeout = 30_000, maxChars = LIMIT, onOutput } = {}) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Execução cancelada.'));
     const child = spawn(exe, args, { cwd, windowsHide: true, shell: false, env: process.env });
@@ -53,6 +53,7 @@ function runProcess(exe, args, { cwd, signal, timeout = 30_000, maxChars = LIMIT
     let finished = false;
     let killedByTimeout = false;
     const keep = (value) => {
+      onOutput?.(value);
       if (out.length >= maxChars) { truncated = true; return; }
       const room = maxChars - out.length;
       out += value.slice(0, room);
@@ -66,11 +67,11 @@ function runProcess(exe, args, { cwd, signal, timeout = 30_000, maxChars = LIMIT
         killer.on('error', () => child.kill());
       } else child.kill('SIGKILL');
     };
-    const timer = setTimeout(() => { killedByTimeout = true; stop(); }, timeout);
+    const timer = timeout > 0 ? setTimeout(() => { killedByTimeout = true; stop(); }, timeout) : null;
     const aborted = () => stop();
     signal?.addEventListener('abort', aborted, { once: true });
-    child.stdout.on('data', (data) => keep(data.toString('utf8')));
-    child.stderr.on('data', (data) => keep(data.toString('utf8')));
+    child.stdout.setEncoding('utf8').on('data', keep);
+    child.stderr.setEncoding('utf8').on('data', keep);
     child.on('error', (error) => finish(error));
     child.on('close', (code) => finish(null, code));
     function finish(error, code) {
@@ -112,14 +113,45 @@ class Workspace {
     return { files: output, truncated: output.length >= 160 };
   }
 
-  readFile(relativePath) {
+  async listDirectory(relativePath = '.') {
+    const dir = getSafePath(this.root, relativePath);
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    return entries.filter(entry => entry.name !== '.git').map(entry => ({
+      name: entry.name,
+      path: path.relative(this.root, path.join(dir, entry.name)).replaceAll('\\', '/'),
+      directory: entry.isDirectory(),
+      link: entry.isSymbolicLink(),
+    })).sort((a, b) => Number(b.directory) - Number(a.directory) || a.name.localeCompare(b.name, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+  }
+
+  async gitChanges() {
+    const [result, location] = await Promise.all([
+      runProcess('git', ['status', '--porcelain=v1', '-z', '--untracked-files=normal', '--', '.'], { cwd: this.root, maxChars: 200_000 }),
+      runProcess('git', ['rev-parse', '--show-prefix'], { cwd: this.root }),
+    ]);
+    if (result.exitCode !== 0 || location.exitCode !== 0) return { changes: [], warning: 'Indicadores Git indisponíveis nesta pasta.' };
+    const prefix = location.output.replace(/\r?\n$/, '');
+    const records = result.output.split('\0');
+    const changes = [];
+    // O último registro pode estar incompleto se o limite de saída tiver sido atingido.
+    for (let i = 0; i < records.length - 1; i++) {
+      const record = records[i];
+      const code = record.slice(0, 2);
+      const name = record.slice(3);
+      if (name.startsWith(prefix)) changes.push({ path: name.slice(prefix.length).replace(/\/$/, ''), status: code === '??' ? 'U' : code.includes('U') ? '!' : [...'DRMA'].find(value => code.includes(value)) || 'M' });
+      if (/[RC]/.test(code)) i++; // Em -z, o caminho antigo vem depois do destino.
+    }
+    return { changes, warning: result.output.endsWith('[saída truncada]') ? 'Há mais alterações Git do que o limite de exibição.' : '' };
+  }
+
+  readFile(relativePath, { track = true } = {}) {
     const target = getSafePath(this.root, relativePath);
     const stats = fs.statSync(target);
     if (!stats.isFile()) throw new Error('O caminho não é um arquivo.');
     if (stats.size > 100_000) throw new Error('Arquivo grande demais para o contexto (100 KB).');
     const data = fs.readFileSync(target);
     if (data.includes(0)) throw new Error('Arquivo binário não suportado neste MVP.');
-    this.readHashes.set(target, hash(data));
+    if (track) this.readHashes.set(target, hash(data));
     return { path: path.relative(this.root, target).replaceAll('\\', '/'), content: data.toString('utf8') };
   }
 
@@ -140,16 +172,16 @@ class Workspace {
     return { path: path.relative(this.root, target).replaceAll('\\', '/'), bytes: Buffer.byteLength(content) };
   }
 
-  async command(command, signal) {
+  async command(command, signal, { timeout = 30_000, onOutput } = {}) {
     if (typeof command !== 'string' || !command.trim() || command.length > 4_000) {
       throw new Error('Comando inválido.');
     }
-    // EncodedCommand suporta acentos e evita quebrar os argumentos do spawn.
+    // spawn recebe o script como um único argumento Unicode, sem um shell intermediário.
+    // -Command evita a serialização CLIXML de stderr ativada por -EncodedCommand.
     const script = `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)\n${command}`;
-    const encoded = Buffer.from(script, 'utf16le').toString('base64');
     return runProcess(process.platform === 'win32' ? 'powershell.exe' : 'pwsh',
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
-      { cwd: this.root, signal });
+      ['-NoLogo', '-NoProfile', '-NonInteractive', '-OutputFormat', 'Text', '-Command', script],
+      { cwd: this.root, signal, timeout, onOutput });
   }
 
   async gitStatus(signal) {

@@ -1,5 +1,35 @@
 # Estado do projeto
 
+## Incremento 6 — distribuição Windows 0.1.0 (08/11/2026)
+
+- RF13: instalador NSIS por usuário e ZIP para Windows x64, gerados com `npm run dist:win`, Electron 45.2.3 e electron-builder 26.18.0. Pacotes em `dist/`, excluídos do Git. Configuração inclui somente código do aplicativo, documentação de uso/licença e dependências de execução; `.env`, histórico, credenciais, testes e ferramentas de publicação não entram no pacote.
+- Codex SDK e seus binários ficam fora do ASAR. Na distribuição, o SDK é importado do caminho físico para localizar e executar seu CLI/recursos. Na abertura do pacote, o projeto inicial é Documentos; o usuário seleciona a pasta no explorador. Desenvolvimento mantém a pasta atual.
+- Verificação: `npm test`, **23/23 aprovados**. Executável empacotado iniciado com perfil temporário: preload, explorador, troca de agentes, recusa de envio sem autenticação, PowerShell Unicode, isolamento de projeto e `codex-cli 0.167.0 --version` aprovados, sem inferência. Conteúdo do ASAR inspecionado para exclusão de arquivos locais. ZIP e instalador NSIS passaram na verificação de integridade do 7-Zip. `npm audit --omit=dev`: 0 vulnerabilidades reportadas; dependências de empacotamento reportam 6 moderadas no desenvolvimento.
+- Artefatos gerados: `ChatAgente-Setup-0.1.0-x64.exe` (248.844.055 bytes) e `ChatAgente-0.1.0-win.zip` (324.923.018 bytes), acompanhados de hashes SHA-256 para publicação na prévia `v0.1.0` do GitHub Releases.
+- Limites: sem assinatura digital ou atualização automática; instalação completa em máquina limpa não verificada. Abertura testada no Windows 10 x64. Login ChatGPT e inferência real continuam não verificados. Nenhuma credencial pessoal ou franquia de inferência usada na validação. README e notas de versão explicam instalação, requisitos e limites da prévia.
+
+Fontes consultadas em 08/11/2026: https://www.electron.build/configuration/, https://www.electron.build/nsis/ e https://www.electron.build/win/.
+
+## Incremento 5 — explorador de projeto (08/11/2026)
+
+- Pedido RF12: lateral com raiz do projeto, hierarquia de pastas, expansão/recolhimento, ícones por extensão, seleção e indicadores reais do Git. Diretórios são listados sob demanda, inclusive `node_modules`; `.git` fica oculto. Git usa registros separados por NUL e normaliza caminhos para projetos dentro de repositórios, incluindo renomeações e Unicode.
+- Arquivos abrem uma prévia de texto somente leitura na área central; fechar retorna ao chat. Configurações e login continuam disponíveis em “Agente e ferramentas”, no rodapé da lateral. Atualização manual e após tarefas/comandos preserva as pastas abertas. Trocar projeto descarta árvore e prévia anteriores; respostas antigas não substituem o projeto atual.
+- IPC valida o projeto e caminhos no processo principal. Prévia mantém os bloqueios existentes de arquivos sensíveis, links externos, binários e textos acima de 100 KB, e não registra a leitura como autorização para futura escrita pelo agente. Nenhum conteúdo é enviado à OpenAI ao explorar ou visualizar arquivos.
+- Verificação: `npm test`, **23/23 aprovados**, incluindo diretórios sob demanda, dependências, limites de acesso, prévia sem habilitar escrita e status Git real com renomeação e projeto em subpasta. No Electron com perfil temporário e seleção de pasta controlada para teste: expansão, Git `M`, prévia, HTML mostrado como texto, segredo bloqueado, atualização, recolhimento e troca de projeto. Captura da janela revisada. Nenhuma inferência ou login externo.
+- Limites: não inclui edição, criação, exclusão, drag-and-drop ou monitoramento contínuo de mudanças externas; usar atualizar e reabrir a prévia para recarregar o arquivo. P01–P06 permanecem propostas. Próximo incremento possível: editor com salvamento e detecção de conflito.
+
+Fontes técnicas consultadas em 08/11/2026: https://nodejs.org/api/fs.html (`readdir`/`Dirent`) e https://git-scm.com/docs/git-status (formato porcelain e registros NUL).
+
+## Incremento 4 — atalhos e saída do PowerShell (08/11/2026)
+
+- Pedido RF11: terminal no painel inferior, `Ctrl + '` abre/oculta e leva o foco ao campo de comando; ao ocultar, devolve o foco quando necessário. Ocultar mantém o comando ativo. `Ctrl + C` dentro do terminal tenta encerrar a árvore de processos, preservando a cópia quando há seleção. Interrupção manual tem IPC próprio e não cancela tarefas do agente.
+- Saída de stdout/stderr transmitida em tempo real, decodificação UTF-8 entre blocos, últimas 25 mil posições preservadas na interface e resultado agregado limitado como antes. Comandos manuais podem continuar além de 30 segundos; ferramentas do agente mantêm seu timeout. Histórico de até 100 comandos por execução do aplicativo, setas ↑/↓ e botões para interromper, limpar e ocultar.
+- Verificação automatizada: `npm test`, **19/19 aprovados**, incluindo PowerShell real com streaming e interrupção, encerramento de processo filho no Windows, UTF-8 dividido entre blocos e avisos/erros legíveis sem CLIXML. Sintaxe dos arquivos JavaScript alterados verificada e `git diff --check` sem erros.
+- Verificação no Electron com perfil temporário e comandos locais reais: abrir/ocultar por teclado, foco, histórico, saída antes do término, cópia com seleção, ocultar sem interromper, comando ativo por mais de 30 segundos, `Ctrl + C` e novo comando após interrupção. Captura da janela revisada; a saída agora usa texto em vez da serialização XML de `-EncodedCommand`. Sem login ou chamadas de inferência.
+- Limites: cada envio inicia um novo PowerShell na pasta do projeto, sem persistir `cd`/variáveis e sem entrada interativa. O bloqueio existente entre comando manual e tarefa do agente permanece. Não há nova dependência ou mudança nas propostas P01–P06. Próximo passo possível: sessão persistente com suporte a programas interativos.
+
+Fontes técnicas consultadas em 08/11/2026: https://nodejs.org/api/child_process.html (`spawn`, stdout/stderr e encerramento de processos) e https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1 (argumentos e formato de saída do PowerShell).
+
 ## Incremento 3 — OAuth sem API key (08/11/2026)
 
 - Pedido confirmado: IDE gratuita e open source, com autenticação ChatGPT sem copiar chaves/tokens. Licença MIT adicionada. O processo principal não usa `OPENAI_API_KEY` para o agente ChatGPT; não existe fallback para cobrança de API. Codex continua independente, com configuração própria do CLI.
@@ -48,4 +78,4 @@ Construir uma IDE Windows com chat OpenAI e ferramentas locais. O usuário solic
 
 ## Limites atuais e próximos passos
 
-Não há histórico persistido, automação de navegador, controle de outras janelas Windows, editor de código ou empacotamento `.exe`. Shell aprovado pode acessar o computador com os privilégios atuais do usuário, além da pasta do projeto. Discutir os modos e as permissões de P01/P02 antes de introduzir controle mais amplo ou automático. Conectar chave OpenAI para teste manual da tarefa ponta a ponta; depois considerar navegador, Git avançado e persistência.
+Não há histórico persistido, automação de navegador, controle de outras janelas Windows ou editor com salvamento. O incremento 6 adiciona os pacotes Windows. Shell aprovado pode acessar o computador com os privilégios atuais do usuário, além da pasta do projeto. Discutir os modos e as permissões de P01/P02 antes de introduzir controle mais amplo ou automático. Concluir o login ChatGPT pelo fluxo atual para teste manual da tarefa ponta a ponta; depois considerar navegador, Git avançado e persistência.
