@@ -64,10 +64,28 @@ exports.run = async function () {
     await git.activate();
     await wait(() => git.exports.getAPI(1).repositories.length > 0);
     await vscode.commands.executeCommand('chatagente.open');
+    assert.equal(api.getState().chatLocation, 'editor');
+    const { ChatView } = require(path.join(extension.extensionPath, 'extension.cjs'));
+    const { Agent } = require(path.join(extension.extensionPath, 'runtime', 'agent.cjs'));
+    const chat = new ChatView({ extensionPath: extension.extensionPath, extensionUri: extension.extensionUri, subscriptions: [] },
+      { Workspace, Agent }, { status: () => ({ connected: true, sharing: true }) });
+    chat.model = 'modelo-simulado-teste';
+    chat.workspace = new Workspace(vscode.workspace.workspaceFolders[0].uri.fsPath);
+    chat.agents.chatgpt = new Agent({ workspace: chat.workspace, onEvent: event => chat.entry(event), client: { responses: { create: async () => (async function* () {
+      yield { type: 'response.completed', response: { status: 'completed', output: [],
+        output_text: 'Claro! Para uma tarefa simples, podemos conversar diretamente.\n\n## Exemplo\n\n```js\nconsole.log("Olá, mundo!");\n```\n\nSe quiser criar um projeto completo, posso trabalhar nos arquivos da pasta aberta.',
+        usage: { input_tokens: 120, output_tokens: 40, total_tokens: 160, input_tokens_details: { cached_tokens: 80 }, output_tokens_details: { reasoning_tokens: 10 } } } };
+    })() } } });
+    chat.openChat();
+    await chat.send('Pode me ajudar com uma tarefa simples?');
+    assert.equal(chat.getState().usage.turn.totalTokens, 160);
+    assert.equal(chat.getState().usage.turn.cachedInputTokens, 80);
+    await new Promise(resolve => setTimeout(resolve, 800));
     await fs.promises.writeFile(`${report}.screenshot-ready`, 'ready');
     await wait(() => fs.existsSync(`${report}.screenshot-done`));
     fs.writeFileSync(report, JSON.stringify({ passed: true, app: vscode.env.appName, vscodeVersion: vscode.version,
-      checks: ['builtin extension', 'ChatGPT/Codex selection', 'native editor/save', 'unsaved buffer protected', 'PowerShell persistent state', 'Ctrl+C', 'native Git', 'chat webview'],
+      checks: ['builtin extension', 'ChatGPT/Codex selection', 'native editor/save', 'unsaved buffer protected', 'PowerShell persistent state', 'Ctrl+C', 'native Git', 'central chat panel', 'token usage from simulated service metadata'],
     }, null, 2));
+    chat.dispose();
   } finally { terminal.dispose(); }
 };

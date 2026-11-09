@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { createSafeStorage, validateMessage, guardWorkspace, safeError } = require('./security.cjs');
 const { createProfileAuth } = require('./auth-lock.cjs');
+const { emptyUsage, addUsage } = require(fs.existsSync(path.join(__dirname, 'runtime', 'usage.cjs')) ? './runtime/usage.cjs' : '../src/usage.cjs');
 
 function codexPath() {
   const base = path.dirname(require.resolve('@openai/codex-win32-x64/package.json'));
@@ -17,6 +18,7 @@ class ChatView {
     this.context = context; this.runtime = { ...runtime, Workspace: guardWorkspace(runtime.Workspace, () => vscode.workspace.textDocuments) }; this.auth = auth;
     this.backend = 'chatgpt'; this.models = []; this.model = ''; this.codexModel = '';
     this.entries = []; this.controller = null; this.loginController = null; this.agents = {};
+    this.turnUsage = emptyUsage(); this.sessionUsage = emptyUsage();
     this.statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
     this.statusBar.command = 'chatagente.selectAgent';
     this.statusBar.tooltip = 'Selecionar agente ChatGPT ou Codex';
@@ -32,7 +34,8 @@ class ChatView {
     const folders = vscode.workspace.workspaceFolders || [];
     return { backend: this.backend, project: this.workspace?.root || (folders.length === 1 && folders[0].uri.scheme === 'file' ? folders[0].uri.fsPath : ''),
       busy: Boolean(this.controller || this.loginController), model: this.backend === 'codex' ? this.codexModel : this.model,
-      connected: Boolean(this.auth.status().connected) };
+      connected: Boolean(this.auth.status().connected), chatLocation: this.panel ? 'editor' : null,
+      usage: { turn: { ...this.turnUsage }, session: { ...this.sessionUsage } } };
   }
   async selectAgent(value) {
     this.idle();
@@ -47,12 +50,20 @@ class ChatView {
     await this.handle({ command: 'backend', value });
   }
   state() {
+    if (this.panel) this.panel.title = `${this.backend === 'codex' ? 'Codex' : 'ChatGPT'} · ChatAgente`;
     this.statusBar.text = `$(comment-discussion) ${this.backend === 'codex' ? 'Codex' : 'ChatGPT'} · ${this.backend === 'codex' ? this.codexModel || 'padrão CLI' : this.model || 'sem modelo'}${this.controller ? ' $(sync~spin)' : ''}`;
     this.post({ type: 'state', backend: this.backend, model: this.backend === 'codex' ? this.codexModel : this.model,
       models: this.backend === 'chatgpt' ? this.models : [], connected: this.auth.status().connected,
-      busy: Boolean(this.controller || this.loginController), directory: this.getState().project });
+      busy: Boolean(this.controller || this.loginController), directory: this.getState().project,
+      usage: this.getState().usage });
   }
   entry(event) {
+    if (event.type === 'usage') {
+      addUsage(this.turnUsage, event.usage);
+      addUsage(this.sessionUsage, event.usage);
+      this.state();
+      return;
+    }
     const sanitized = {};
     for (const key of ['type', 'text', 'name', 'status', 'output']) {
       if (typeof event[key] === 'string') sanitized[key] = this.error(new Error(event[key]));
@@ -60,14 +71,23 @@ class ChatView {
     this.entries.push(sanitized); this.post({ type: 'event', event: sanitized });
   }
   idle() { if (this.controller || this.loginController) throw new Error('Finalize ou interrompa a execução primeiro.'); }
-  async selectWorkspace() {
+  clearConversation() {
+    this.entries = []; this.turnUsage = emptyUsage(); this.sessionUsage = emptyUsage();
+    this.post({ type: 'clear' });
+  }
+  async selectWorkspace({ optional = false } = {}) {
     const folders = (vscode.workspace.workspaceFolders || []).filter(f => f.uri.scheme === 'file');
-    if (!folders.length) throw new Error('Abra uma pasta local na IDE.');
+    if (!folders.length) {
+      if (!optional) throw new Error('Abra uma pasta local na IDE.');
+      if (this.workspace) { this.agents = {}; this.clearConversation(); }
+      this.workspace = null;
+      return null;
+    }
     const folder = folders.length === 1 ? folders[0] : await vscode.window.showWorkspaceFolderPick({ placeHolder: 'Projeto para esta tarefa' });
     if (!folder) throw new Error('Seleção de projeto cancelada.');
     if (this.workspace?.root !== fs.realpathSync(folder.uri.fsPath)) {
       this.workspace = new this.runtime.Workspace(folder.uri.fsPath); this.agents = {};
-      this.entries = []; this.post({ type: 'clear' });
+      this.clearConversation();
     }
     return this.workspace;
   }
@@ -109,7 +129,8 @@ class ChatView {
     if (!vscode.workspace.isTrusted) throw new Error('Confie no projeto antes de executar agentes.');
     this.controller = new AbortController(); this.state();
     try {
-      await this.selectWorkspace();
+      await this.selectWorkspace({ optional: this.backend === 'chatgpt' });
+      this.turnUsage = emptyUsage();
       this.state();
       if (this.backend === 'codex') {
         if (vscode.workspace.textDocuments.some(doc => doc.isDirty && doc.uri.scheme === 'file' && this.runtime.isInside(this.workspace.root, doc.uri.fsPath))) {
@@ -131,16 +152,18 @@ class ChatView {
     if (!validateMessage(message)) throw new Error('Comando inválido.');
     const { command, value } = message;
     if (command === 'ready') { this.post({ type: 'history', entries: this.entries }); this.state(); return; }
+    if (command === 'open') return this.openChat();
     if (command === 'stop') { this.controller?.abort(); this.loginController?.abort(); return; }
     if (command === 'send') return this.send(value);
     this.idle();
-    if (command === 'backend') { this.backend = value; this.agents[value]?.reset(); this.post({ type: 'clear' }); this.entries = []; }
+    if (command === 'backend') { this.backend = value; this.agents[value]?.reset(); this.clearConversation(); }
     if (command === 'model') {
       if (this.backend === 'chatgpt' && !this.models.some(m => m.slug === value)) throw new Error('Modelo não disponível para esta conexão.');
       if (this.backend === 'chatgpt') this.model = value; else this.codexModel = value;
       this.agents[this.backend]?.reset(); delete this.agents[this.backend];
+      this.clearConversation();
     }
-    if (command === 'reset') { this.agents[this.backend]?.reset(); this.entries = []; this.post({ type: 'clear' }); }
+    if (command === 'reset') { this.agents[this.backend]?.reset(); this.clearConversation(); }
     if (command === 'folder') await vscode.commands.executeCommand('workbench.action.files.openFolder');
     if (command === 'terminal') await vscode.commands.executeCommand('workbench.action.terminal.toggleTerminal');
     if (command === 'git') await vscode.commands.executeCommand('workbench.view.scm');
@@ -169,7 +192,25 @@ class ChatView {
     }
     this.state();
   }
+  openChat() {
+    // Oculta o painel inferior para dar espaço à conversa; os terminais continuam vivos.
+    void vscode.commands.executeCommand('workbench.action.closePanel');
+    if (this.panel) { this.panel.reveal(this.panel.viewColumn || vscode.ViewColumn.One); return; }
+    const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
+    const panel = vscode.window.createWebviewPanel('chatagente.conversation', 'ChatGPT · ChatAgente', vscode.ViewColumn.One,
+      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [media] });
+    this.panel = panel;
+    this.attachChat(panel);
+    this.state();
+  }
   resolveWebviewView(view) {
+    // A lateral é somente um atalho; a conversa fica no editor central.
+    const nonce = crypto.randomBytes(24).toString('base64');
+    view.webview.options = { enableScripts: true, localResourceRoots: [] };
+    view.webview.html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'"><title>ChatAgente</title></head><body><p>Converse com o ChatGPT na área principal.</p><button id="open">Abrir chat</button><script nonce="${nonce}">const api=acquireVsCodeApi();document.getElementById('open').addEventListener('click',()=>api.postMessage({command:'open'}));</script></body></html>`;
+    view.webview.onDidReceiveMessage(message => { if (message?.command === 'open' && Object.keys(message).length === 1) this.openChat(); }, null, this.context.subscriptions);
+  }
+  attachChat(view) {
     this.view = view;
     const webview = view.webview;
     const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
@@ -179,12 +220,12 @@ class ChatView {
       .replaceAll('{{csp}}', webview.cspSource).replaceAll('{{nonce}}', nonce)
       .replaceAll('{{script}}', webview.asWebviewUri(vscode.Uri.joinPath(media, 'chat.js')).toString())
       .replaceAll('{{style}}', webview.asWebviewUri(vscode.Uri.joinPath(media, 'chat.css')).toString());
-    view.onDidDispose(() => { if (this.view === view) this.view = null; }, null, this.context.subscriptions);
+    view.onDidDispose(() => { if (this.view === view) { this.view = null; this.panel = null; } }, null, this.context.subscriptions);
     webview.onDidReceiveMessage(message => {
       void this.handle(message).catch(error => { this.entry({ type: 'error', text: this.error(error) }); this.state(); });
     }, null, this.context.subscriptions);
   }
-  dispose() { this.controller?.abort(); this.loginController?.abort(); this.statusBar.dispose(); }
+  dispose() { this.controller?.abort(); this.loginController?.abort(); this.panel?.dispose(); this.statusBar.dispose(); }
 }
 
 async function activate(context) {
@@ -198,14 +239,17 @@ async function activate(context) {
     const provider = new ChatView(context, runtime, auth);
     provider.state();
     context.subscriptions.push(provider, vscode.window.registerWebviewViewProvider('chatagente.chat', provider),
-      vscode.commands.registerCommand('chatagente.open', () => vscode.commands.executeCommand('chatagente.chat.focus')),
+      vscode.commands.registerCommand('chatagente.open', () => provider.openChat()),
       vscode.commands.registerCommand('chatagente.selectAgent', value => provider.selectAgent(value)),
       vscode.workspace.onDidChangeWorkspaceFolders(() => { provider.controller?.abort(); provider.workspace = null; provider.agents = {}; provider.state(); }));
     if (auth.status().sharing) { try { await provider.loadModels(); } catch { /* Login permanece disponível para recuperar a conexão. */ } }
-    if (!context.globalState.get('chatagente.opened')) {
-      await vscode.commands.executeCommand('chatagente.open');
-      await context.globalState.update('chatagente.opened', true);
+    if (!context.globalState.get('chatagente.centerChatOpened.v1')) {
+      await vscode.commands.executeCommand('workbench.view.explorer');
+      const commands = await vscode.commands.getCommands(true);
+      if (commands.includes('workbench.action.closeAuxiliaryBar')) await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+      await context.globalState.update('chatagente.centerChatOpened.v1', true);
     }
+    await vscode.commands.executeCommand('chatagente.open');
     return Object.freeze({ getState: () => provider.getState() });
   } catch (error) { void vscode.window.showErrorMessage(`ChatAgente: falha ao iniciar. ${safeError(error)}`); }
 }

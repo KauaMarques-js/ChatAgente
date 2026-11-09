@@ -57,7 +57,7 @@ async function createSafeStorage(secrets) {
   };
 }
 
-const SIMPLE = new Set(['ready', 'stop', 'reset', 'login', 'logout', 'models', 'folder', 'terminal', 'git', 'explorer']);
+const SIMPLE = new Set(['ready', 'open', 'stop', 'reset', 'login', 'logout', 'models', 'folder', 'terminal', 'git', 'explorer']);
 function validateMessage(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   if (SIMPLE.has(value.command)) return Object.keys(value).length === 1;

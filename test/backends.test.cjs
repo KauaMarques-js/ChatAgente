@@ -59,3 +59,16 @@ test('ChatGPT sem chave pode iniciar agente e sinaliza falta de autenticação a
   const agent = new Agent({ workspace: { root: 'C:\\Dev\\example' } });
   await assert.rejects(agent.send('Olá', new AbortController().signal), /Conecte sua conta ChatGPT/);
 });
+
+test('Codex publica uso real do turno, sem duplicar cache/raciocínio', async () => {
+  const events = [];
+  const agent = new CodexAgent({ workspace: { root: '.' }, onEvent: event => events.push(event),
+    codexFactory: async () => ({ startThread: () => ({ runStreamed: async () => ({ events: (async function* () {
+      yield { type: 'item.completed', item: { id: '1', type: 'agent_message', text: 'Resposta' } };
+      yield { type: 'turn.completed', usage: { input_tokens: 100, cached_input_tokens: 70, output_tokens: 20, reasoning_output_tokens: 10 } };
+    })() }) }) }) });
+  assert.equal(await agent.send('Teste'), 'Resposta');
+  const reported = events.filter(event => event.type === 'usage');
+  assert.equal(reported.length, 1);
+  assert.deepEqual(reported[0].usage, { inputTokens: 100, outputTokens: 20, totalTokens: 120, cachedInputTokens: 70, reasoningTokens: 10 });
+});

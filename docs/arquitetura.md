@@ -1,5 +1,7 @@
 # Arquitetura proposta
 
+Desde 0.3.0, a conversa fica em WebviewPanel na área do editor e a lateral é um atalho. ChatGPT permite conversa sem workspace (sem ferramentas) e trabalho no projeto quando uma pasta é aberta. Metadados de tokens dos adaptadores passam por normalização/agregação e aparecem sem estimativa de valores ausentes, sem requisições extras de inferência.
+
 ## Arquitetura atual — 0.2.0 (08/11/2026)
 
 Distribuição independente Code OSS/VSCodium, verificada por hash em `ide-base.json`, com nome/perfil ChatAgente e integração embutida em `ide-extension/`. O workbench fornece editor, explorador, Git, terminal/PTY, busca, extensões e depuração. O extension host executa os agentes ChatGPT (runtime próprio `src/agent.cjs`) e Codex (SDK oficial), com o mesmo seletor na webview/status bar. Isso substitui a reconstrução manual de recursos da IDE no MVP HTML anterior.

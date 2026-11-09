@@ -1,4 +1,5 @@
 // Codex SDK: usa a autenticação do Codex CLI do usuário, em thread separada.
+const { normalizeUsage } = require('./usage.cjs');
 class CodexAgent {
   constructor({ workspace, onEvent, codexFactory, sdkModule = '@openai/codex-sdk' }) {
     this.workspace = workspace;
@@ -26,6 +27,8 @@ class CodexAgent {
     const { events } = await this.thread.runStreamed(message, { signal });
     const emitted = new Map();
     let answer = '';
+    let usageReported = false;
+    try {
     for await (const event of events) {
       if (signal?.aborted) throw new Error('Tarefa interrompida.');
       if (event.type === 'item.started' || event.type === 'item.updated' || event.type === 'item.completed') {
@@ -46,12 +49,16 @@ class CodexAgent {
           this.onEvent({ type: 'action', name: 'Codex · arquivos', status: item.status,
             output: JSON.stringify(item.changes || []).slice(0, 2_000) });
         }
+      } else if (event.type === 'turn.completed') {
+        this.onEvent({ type: 'usage', usage: normalizeUsage(event.usage, 'codex') });
+        usageReported = true;
       } else if (event.type === 'turn.failed') {
         throw new Error(event.error?.message || 'A tarefa Codex falhou.');
       } else if (event.type === 'error') {
         throw new Error(event.message || 'Erro no Codex.');
       }
     }
+    } finally { if (!usageReported) this.onEvent({ type: 'usage', usage: null }); }
     return answer || '(Codex concluiu sem mensagem final.)';
   }
 }

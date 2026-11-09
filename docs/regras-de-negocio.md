@@ -6,6 +6,10 @@ Origem: conversa com o usuário em 08/11/2026. A primeira solicitação autorizo
 
 ## Requisitos explícitos
 
+**RF16 (pedido posterior, autorizado em 08/11/2026):** priorizar chatbot amplo na área principal, em vez da lateral esquerda. ChatGPT é o padrão para perguntas simples e pode programar um projeto completo com as ferramentas existentes. O modo ChatGPT usa integração direta e não executa Codex; a alternativa de RF09 permanece uma escolha explícita. Conversas simples funcionam sem pasta. Preservar ausência de cotas locais de RF14 e aprovações existentes.
+
+**RF17 (mesmo pedido):** mostrar os tokens informados pelo serviço por resposta/conversa, com entrada, saída e total. Dados ausentes são desconhecidos e agregados incompletos são parciais. Não estimar números como se fossem reais nem duplicar cache/raciocínio. O desejo de “não gastar token” não autoriza contornar o serviço ou prometer consumo zero: usar o plano conforme RF10 e informar o uso disponível, sem presumir que ChatGPT sempre consome menos que Codex.
+
 **RF14 (pedido posterior, autorizado em 08/11/2026):** o usuário exige o fluxo de programação do VS Code com Codex, escolhendo entre ChatGPT e Codex como agente. Não impor cotas locais de rodadas, prazo total de tarefa ou pausas obrigatórias para enviar “continuar”. Manter Parar e tratar falhas reais/limites do serviço sem contorná-los. “Ilimitado” aqui define ausência dessas cotas artificiais no aplicativo; não promete remover limites de plano, contexto ou disponibilidade da OpenAI.
 
 **RF15 (escolha confirmada em 08/11/2026):** manter ChatAgente como aplicativo independente, em vez de exigir o VS Code do usuário. Para fornecer editor, terminal e recursos reais de IDE, foi apresentada a adoção da base aberta Code OSS/VSCodium. A distribuição mantém identidade própria e licenças/avisos da base. O ambiente não é o binário oficial Microsoft VS Code e não presume acesso à loja proprietária Microsoft Marketplace.

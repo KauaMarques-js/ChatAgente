@@ -2,7 +2,7 @@
   "name": "chatagente",
   "displayName": "ChatAgente",
   "description": "ChatGPT e Codex nos recursos nativos da IDE.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "chatagente",
   "license": "MIT",
   "engines": { "vscode": "^1.85.0" },

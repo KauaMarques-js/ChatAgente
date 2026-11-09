@@ -74,7 +74,7 @@ async function main() {
   extensionManifest.version = manifest.version;
   await fsp.writeFile(extensionManifestPath, JSON.stringify(extensionManifest, null, 2));
   await fsp.mkdir(path.join(extensionRoot, 'runtime'), { recursive: true });
-  for (const name of ['agent.cjs', 'workspace.cjs', 'codex-agent.cjs', 'chatgpt-auth.cjs']) {
+  for (const name of ['agent.cjs', 'workspace.cjs', 'codex-agent.cjs', 'chatgpt-auth.cjs', 'usage.cjs']) {
     await fsp.copyFile(path.join(root, 'src', name), path.join(extensionRoot, 'runtime', name));
   }
   const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
@@ -97,6 +97,15 @@ async function main() {
   ].join('\r\n'));
   console.log(`IDE preparada: ${path.join(destination, 'ChatAgente.exe')}`);
   if (!process.argv.includes('--prepare')) {
+    // O cache do empacotador não detecta mudanças internas da base --prepackaged.
+    // Recria apenas os artefatos gerados desta versão, inclusive após build interrompido.
+    const output = path.join(root, 'dist');
+    for (const name of [`ChatAgente-${manifest.version}-win.zip`, `ChatAgente-Setup-${manifest.version}-x64.exe`,
+      `ChatAgente-Setup-${manifest.version}-x64.exe.blockmap`, `chatagente-${manifest.version}-x64.nsis.7z`]) {
+      const target = path.resolve(output, name);
+      if (path.dirname(target) !== output) throw new Error('Artefato de saída inválido.');
+      await fsp.rm(target, { force: true });
+    }
     run(process.execPath, [path.join(root, 'node_modules', 'electron-builder', 'cli.js'), '--prepackaged', destination, '--win', 'nsis', 'zip', '--x64', '--publish', 'never']);
   }
 }
